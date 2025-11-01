@@ -41,12 +41,11 @@ type
     isIgnore: bool
     isFlatten: bool
 
-  GeneratedFieldInfo = object
-    isIgnore: bool
-    isCommandOrArgument: bool
-    path: seq[string]
+  ConfFileSectionTail = object
+    node: ConfFileSection
+    path: seq[ConfFileSection]
 
-  OriginalToGeneratedFields = OrderedTable[string, GeneratedFieldInfo]
+  ConfFileSectionTailMap = OrderedTable[string, ConfFileSectionTail]
 
   SectionParam = object
     isCommandOrArgument: bool
@@ -278,27 +277,25 @@ proc generateTypes(root: ConfFileSection): seq[NimNode] =
       recList.add generateOptionalField(child.getRenamedName.ident, child.typ)
   result[index].putRecList(recList)
 
-proc generateSettersPaths(node: ConfFileSection,
-                          result: var OriginalToGeneratedFields,
-                          pathsCache: var seq[string]) =
-  if not node.isFlatten:
-    pathsCache.add node.getRenamedName
+proc generateConfMap(
+  node: ConfFileSection,
+  result: var ConfFileSectionTailMap,
+  pathsCache: var seq[ConfFileSection]
+) =
+  pathsCache.add node
   if node.children.len == 0:
-    # XXX try parentDotChild
-    result[node.fieldName] = GeneratedFieldInfo(
-      isIgnore: node.isIgnore,
-      isCommandOrArgument: node.isCommandOrArgument,
+    result[node.fieldName] = ConfFileSectionTail(
+      node: node,
       path: pathsCache,
     )
   else:
     for child in node.children:
-      generateSettersPaths(child, result, pathsCache)
-  if not node.isFlatten:
-    pathsCache.del pathsCache.len - 1
+      generateConfMap(child, result, pathsCache)
+  pathsCache.setLen pathsCache.len - 1
 
-proc generateSettersPaths(root: ConfFileSection, pathsCache: var seq[string]): OriginalToGeneratedFields =
+proc generateConfMap(root: ConfFileSection, pathsCache: var seq[ConfFileSection]): ConfFileSectionTailMap =
   for child in root.children:
-    generateSettersPaths(child, result, pathsCache)
+    generateConfMap(child, result, pathsCache)
 
 template cfSetter(a, b: untyped): untyped =
   when a is Option:
@@ -306,7 +303,7 @@ template cfSetter(a, b: untyped): untyped =
   else:
     a = b
 
-proc generateSetters(confType, CF: NimNode, fieldsPaths: OriginalToGeneratedFields):
+proc generateSetters(confType, CF: NimNode, confMap: ConfFileSectionTailMap):
     (NimNode, NimNode, int) =
   var
     procs = newStmtList()
@@ -314,8 +311,8 @@ proc generateSetters(confType, CF: NimNode, fieldsPaths: OriginalToGeneratedFiel
     numSetters = 0
 
   let c = "c".ident
-  for field, param in fieldsPaths:
-    if param.isCommandOrArgument or param.isIgnore:
+  for field, cf in confMap:
+    if cf.node.isCommandOrArgument or cf.node.isIgnore:
       assignments.add quote do:
         result.setters[`numSetters`] = defaultConfigFileSetter
       inc numSetters
@@ -323,8 +320,10 @@ proc generateSetters(confType, CF: NimNode, fieldsPaths: OriginalToGeneratedFiel
 
     var fieldPath = c
     var condition: NimNode
-    for fld in param.path:
-      fieldPath = newDotExpr(fieldPath, fld.ident)
+    for node in cf.path:
+      if node.isFlatten:
+        continue
+      fieldPath = newDotExpr(fieldPath, node.getRenamedName.ident)
       let fieldChecker = newDotExpr(fieldPath, "isSome".ident)
       if condition == nil:
         condition = fieldChecker
@@ -348,13 +347,13 @@ proc generateSetters(confType, CF: NimNode, fieldsPaths: OriginalToGeneratedFiel
   result = (procs, assignments, numSetters)
 
 proc generateConfigFileSetters(confType, optType: NimNode,
-                               fieldsPaths: OriginalToGeneratedFields): NimNode =
+                               confMap: ConfFileSectionTailMap): NimNode =
   let
     CF = ident "SecondarySources"
     T = confType.getType[1]
     optT = optType[0][0]
     SetterProcType = genSym(nskType, "SetterProcType")
-    (setterProcs, assignments, numSetters) = generateSetters(T, CF, fieldsPaths)
+    (setterProcs, assignments, numSetters) = generateSetters(T, CF, confMap)
   result = quote do:
     type
       `SetterProcType` = proc(
@@ -385,7 +384,7 @@ macro generateSecondarySources*(ConfType: type): untyped =
     model = generateConfigFileModel(ConfType)
     modelType = generateTypes(model)
   var
-    pathsCache: seq[string]
+    pathsCache: seq[ConfFileSection]
 
   result = newTree(nnkStmtList)
   result.add newTree(nnkTypeSection, modelType)
@@ -407,10 +406,10 @@ macro generateSecondarySources*(ConfType: type): untyped =
       return true
   ]#
 
-  let settersPaths = model.generateSettersPaths(pathsCache)
-  #echo $settersPaths
+  let confMap = model.generateConfMap(pathsCache)
+  #echo $confMap
   #doAssert false
-  result.add generateConfigFileSetters(ConfType, result[^1], settersPaths)
+  result.add generateConfigFileSetters(ConfType, result[^1], confMap)
   doAssert false
 
 {.pop.}
