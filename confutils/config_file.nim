@@ -39,6 +39,7 @@ type
     isCaseBranch: bool
     isDiscriminator: bool
     isIgnore: bool
+    isFlatten: bool
 
   GeneratedFieldInfo = object
     isIgnore: bool
@@ -52,8 +53,14 @@ type
     isIgnore: bool
     defaultValue: string
     namePragma: string
+    isFlatten: bool
 
 {.push gcsafe, raises: [].}
+
+template debugMacroResult(macroName: string) {.dirty.} =
+  when defined(debugMacros) or defined(debugConfutils):
+    echo "\n-------- ", macroName, " ----------------------"
+    echo result.repr
 
 func isOption(n: NimNode): bool =
   if n.kind != nnkBracketExpr: return false
@@ -77,15 +84,27 @@ proc generateOptionalField(fieldName: NimNode, fieldType: NimNode): NimNode =
   let right = if isOption(fieldType): fieldType else: makeOption(fieldType)
   newIdentDefs(fieldName, right)
 
+proc traverseRecList(recList: NimNode, parent: ConfFileSection): seq[ConfFileSection]
+
 proc traverseIdent(ident: NimNode, typ: NimNode,
                    isDiscriminator: bool, param = SectionParam()): ConfFileSection =
   ident.expectKind nnkIdent
-  ConfFileSection(fieldName: $ident,
-                  namePragma: param.namePragma, typ: typ,
-                  defaultValue: param.defaultValue,
-                  isCommandOrArgument: param.isCommandOrArgument,
-                  isDiscriminator: isDiscriminator,
-                  isIgnore: param.isIgnore)
+  if param.isFlatten:
+    let confTypeImpl = typ.getImpl
+    let conf = ConfFileSection(
+      fieldName: $ident, typ: typ, isFlatten: param.isFlatten
+    )
+    conf.children = traverseRecList(confTypeImpl[2][2], conf)
+    conf
+  else:
+    ConfFileSection(
+      fieldName: $ident,
+      namePragma: param.namePragma, typ: typ,
+      defaultValue: param.defaultValue,
+      isCommandOrArgument: param.isCommandOrArgument,
+      isDiscriminator: isDiscriminator,
+      isIgnore: param.isIgnore
+    )
 
 proc traversePostfix(postfix: NimNode, typ: NimNode, isDiscriminator: bool,
                      param = SectionParam()): ConfFileSection =
@@ -128,6 +147,8 @@ proc traversePragma(pragma: NimNode): SectionParam =
         result.isCommandOrArgument = true
       elif sym == "ignore":
         result.isIgnore = true
+      elif sym == "flatten":
+        result.isFlatten = true
     of nnkExprColonExpr:
       let pragma = $child[0]
       if pragma == "defaultValue":
@@ -171,8 +192,6 @@ proc traverseIdentDefs(identDefs: NimNode, parent: ConfFileSection,
       discard
     else:
       raiseAssert "[IdentDefs] Unsupported child node:\n" & child.treeRepr
-
-proc traverseRecList(recList: NimNode, parent: ConfFileSection): seq[ConfFileSection]
 
 proc traverseOfBranch(ofBranch: NimNode, parent: ConfFileSection): ConfFileSection =
   ofBranch.expectKind nnkOfBranch
@@ -250,6 +269,11 @@ proc generateTypes(root: ConfFileSection): seq[NimNode] =
         var types = generateTypes(child)
         recList.add generateOptionalField(child.fieldName.ident, types[0][0])
         result.add types
+    elif child.isFlatten:
+      var types = generateTypes(child)
+      for t in types:
+        t[2][2].expectKind nnkRecList
+        recList.add t[2][2]
     else:
       recList.add generateOptionalField(child.getRenamedName.ident, child.typ)
   result[index].putRecList(recList)
@@ -257,8 +281,10 @@ proc generateTypes(root: ConfFileSection): seq[NimNode] =
 proc generateSettersPaths(node: ConfFileSection,
                           result: var OriginalToGeneratedFields,
                           pathsCache: var seq[string]) =
-  pathsCache.add node.getRenamedName
+  if not node.isFlatten:
+    pathsCache.add node.getRenamedName
   if node.children.len == 0:
+    # XXX try parentDotChild
     result[node.fieldName] = GeneratedFieldInfo(
       isIgnore: node.isIgnore,
       isCommandOrArgument: node.isCommandOrArgument,
@@ -267,7 +293,8 @@ proc generateSettersPaths(node: ConfFileSection,
   else:
     for child in node.children:
       generateSettersPaths(child, result, pathsCache)
-  pathsCache.del pathsCache.len - 1
+  if not node.isFlatten:
+    pathsCache.del pathsCache.len - 1
 
 proc generateSettersPaths(root: ConfFileSection, pathsCache: var seq[string]): OriginalToGeneratedFields =
   for child in root.children:
@@ -328,30 +355,30 @@ proc generateConfigFileSetters(confType, optType: NimNode,
     optT = optType[0][0]
     SetterProcType = genSym(nskType, "SetterProcType")
     (setterProcs, assignments, numSetters) = generateSetters(T, CF, fieldsPaths)
-    stmtList = quote do:
-      type
-        `SetterProcType` = proc(
-          s: var `T`, cf: ref `CF`
-        ): bool {.nimcall, gcsafe, raises: [].}
+  result = quote do:
+    type
+      `SetterProcType` = proc(
+        s: var `T`, cf: ref `CF`
+      ): bool {.nimcall, gcsafe, raises: [].}
 
-        `CF` = object
-           data*: seq[`optT`]
-           setters: array[`numSetters`, `SetterProcType`]
+      `CF` = object
+          data*: seq[`optT`]
+          setters: array[`numSetters`, `SetterProcType`]
 
-      proc defaultConfigFileSetter(
-          s: var `T`, cf: ref `CF`
-      ): bool {.nimcall, gcsafe, raises: [], used.} =
-        discard
+    proc defaultConfigFileSetter(
+        s: var `T`, cf: ref `CF`
+    ): bool {.nimcall, gcsafe, raises: [], used.} =
+      discard
 
-      `setterProcs`
+    `setterProcs`
 
-      proc new(_: type `CF`): ref `CF` =
-        new result
-        `assignments`
+    proc new(_: type `CF`): ref `CF` =
+      new result
+      `assignments`
 
-      new(`CF`)
+    new(`CF`)
 
-  stmtList
+  debugMacroResult "ConfigFile Setters"
 
 macro generateSecondarySources*(ConfType: type): untyped =
   let
@@ -362,8 +389,28 @@ macro generateSecondarySources*(ConfType: type): untyped =
 
   result = newTree(nnkStmtList)
   result.add newTree(nnkTypeSection, modelType)
+  echo repr model
+  echo repr modelType
+  #doAssert false
+  #[
+  ConfFileSection(children: @[ConfFileSection(children: @[], fieldName: "opt1", namePragma: "top-opt1", typ: string, defaultValue: "\"top_opt_1\"", isCommandOrArgument: false, isCaseBranch: false, isDiscriminator: false, isIgnore: false), ConfFileSection(children: @[], fieldName: "opt2", namePragma: "top-opt2", typ: bool, defaultValue: "true", isCommandOrArgument: false, isCaseBranch: false, isDiscriminator: false, isIgnore: false)], fieldName: "TopOptsConf", namePragma: "", typ: nil, defaultValue: "", isCommandOrArgument: false, isCaseBranch: false, isDiscriminator: false, isIgnore: false)
+  @[TopOptsConf_587202723 = object
+    top-opt1: Option[string]
+    top-opt2: Option[bool]
+  ]
+  proc opt1CFSetter_587202770(s`gensym22: var TopOptsConf;
+                            cf`gensym22: ref SecondarySources): bool {.nimcall,
+    gcsafe.} =
+  for c in cf`gensym22.data:
+    if c.top-opt1.isSome:
+      cfSetter(s`gensym22.opt1, c.top-opt1.get)
+      return true
+  ]#
 
   let settersPaths = model.generateSettersPaths(pathsCache)
+  #echo $settersPaths
+  #doAssert false
   result.add generateConfigFileSetters(ConfType, result[^1], settersPaths)
+  doAssert false
 
 {.pop.}

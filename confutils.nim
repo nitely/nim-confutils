@@ -667,6 +667,40 @@ template debugMacroResult(macroName: string) {.dirty.} =
     echo "\n-------- ", macroName, " ----------------------"
     echo result.repr
 
+proc dotExpr(a, b: NimNode): NimNode =
+  ## Return merged dot expr of `a.b`;
+  ## `a` or `b` can be dot expr
+  if a.kind == nnkDotExpr:
+    newDotExpr(a[0], dotExpr(a[1], b))
+  elif b.kind == nnkDotExpr:
+    newDotExpr(dotExpr(a, b[0]), b[1])
+  else:
+    newDotExpr(a, b)
+
+type ConfFieldDesc = object
+  field: FieldDescription
+  parent: FieldDescription
+
+proc hasParent(cf: ConfFieldDesc): bool =
+  cf.parent != default(ConfFieldDesc).parent
+
+proc confFields(typeImpl: NimNode): seq[ConfFieldDesc] =
+  for field in recordFields(typeImpl):
+    if field.readPragma"flatten" != nil:
+      for f in recordFields(getImpl(field.typ)):
+      #for cf in confFields(getImpl(field.typ)):
+        if f.isDiscriminator:
+          error "Case-object cannot be flattened"
+        result.add ConfFieldDesc(field: f, parent: field)
+    else:
+      result.add ConfFieldDesc(field: field)
+
+proc genField(cf: ConfFieldDesc): NimNode =
+  if cf.hasParent:
+    dotExpr(cf.parent.name, cf.field.name)
+  else:
+    cf.field.name
+
 proc generateFieldSetters(RecordType: NimNode): NimNode =
   var recordDef = getImpl(RecordType)
   let makeDefaultValue = bindSym"makeDefaultValue"
@@ -674,7 +708,8 @@ proc generateFieldSetters(RecordType: NimNode): NimNode =
   result = newTree(nnkStmtListExpr)
   var settersArray = newTree(nnkBracket)
 
-  for field in recordFields(recordDef):
+  for cf in confFields(recordDef):
+    let field = cf.field
     var
       setterName = ident($field.name & "Setter")
       fieldName = field.name
@@ -682,7 +717,7 @@ proc generateFieldSetters(RecordType: NimNode): NimNode =
       paramName = if namePragma != nil: namePragma
                   else: fieldName
       configVar = ident "config"
-      configField = newTree(nnkDotExpr, configVar, fieldName)
+      configField = dotExpr(configVar, genField(cf))
       defaultValue = field.readPragma"defaultValue"
       completerName = ident($field.name & "Complete")
       isFieldDiscriminator = newLit field.isDiscriminator
@@ -772,8 +807,9 @@ proc cmdInfoFromType(T: NimNode): CmdInfo =
     discriminatorFields = newSeq[OptInfo]()
     fieldIdx = 0
 
-  for field in recordFields(recordDef):
+  for cf in confFields(recordDef):
     let
+      field = cf.field
       isImplicitlySelectable = field.readPragma"implicitlySelectable" != nil
       defaultValue = field.readPragma"defaultValue"
       defaultValueDesc = field.readPragma"defaultValueDesc"
@@ -872,6 +908,8 @@ macro configurationRtti(RecordType: type): untyped =
     fieldSetters = generateFieldSetters T
 
   result = newTree(nnkPar, newLitFixed cmdInfo, fieldSetters)
+
+  debugMacroResult "configurationRtti"
 
 when hasSerialization:
   proc addConfigFile*(secondarySources: auto,
@@ -1188,6 +1226,7 @@ proc loadImpl[C, SecondarySources](
         except ValueError as err:
           fail "Option '" & opt.name & "' failed to parse: '" & err.msg & "'"
 
+  #doAssert activeCmds.len == secondarySourcesRef.setters.len
   for cmd in activeCmds:
     result.processMissingOpts(cmd)
 
