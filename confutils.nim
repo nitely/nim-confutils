@@ -13,7 +13,7 @@ import
   os,
   std/[enumutils, options, strutils, wordwrap],
   stew/shims/macros,
-  confutils/[defs, cli_parser, config_file]
+  confutils/[defs, cli_parser, config_file, utils]
 
 export
   options, defs, config_file
@@ -667,16 +667,6 @@ template debugMacroResult(macroName: string) {.dirty.} =
     echo "\n-------- ", macroName, " ----------------------"
     echo result.repr
 
-proc dotExpr(a, b: NimNode): NimNode =
-  ## Return merged dot expr of `a.b`;
-  ## `a` or `b` can be dot expr
-  if a.kind == nnkDotExpr:
-    newDotExpr(a[0], dotExpr(a[1], b))
-  elif b.kind == nnkDotExpr:
-    newDotExpr(dotExpr(a, b[0]), b[1])
-  else:
-    newDotExpr(a, b)
-
 type ConfFieldDesc = object
   field: FieldDescription
   parent: FieldDescription
@@ -870,18 +860,26 @@ proc cmdInfoFromType(T: NimNode): CmdInfo =
         if opt.defaultSubCmd == -1:
           error "The default value is not a valid enum value", defaultValue
 
-    if field.caseField != nil and field.caseBranch != nil:
-      let fieldName = field.caseField.getFieldName
+    let caseField = if cf.hasParent():
+      cf.parent.caseField
+    else:
+      field.caseField
+    let caseBranch = if cf.hasParent():
+      cf.parent.caseBranch
+    else:
+      field.caseBranch
+    if caseField != nil and caseBranch != nil:
+      let fieldName = caseField.getFieldName
       var discriminator = findOpt(discriminatorFields, $fieldName)
 
       if discriminator == nil:
         error "Unable to find " & $fieldName
 
-      if field.caseBranch.kind == nnkElse:
+      if caseBranch.kind == nnkElse:
         error "Sub-command parameters cannot appear in an else branch. " &
-              "Please specify the sub-command branch precisely", field.caseBranch[0]
+              "Please specify the sub-command branch precisely", caseBranch[0]
 
-      var branchEnumVal = field.caseBranch[0]
+      var branchEnumVal = caseBranch[0]
       if branchEnumVal.kind == nnkDotExpr:
         branchEnumVal = branchEnumVal[1]
       var cmd = findCmd(discriminator.subCmds, $branchEnumVal)

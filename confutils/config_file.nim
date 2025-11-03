@@ -9,7 +9,8 @@
 
 import
   std/[tables, macrocache],
-  stew/shims/macros
+  stew/shims/macros,
+  ./utils
 
 {.warning[UnusedImport]:off.}
 import
@@ -320,24 +321,27 @@ proc generateSetters(confType, CF: NimNode, confMap: ConfFileSectionTailMap):
 
     var fieldPath = c
     var condition: NimNode
+    let configVar = ident "config"
+    var configField = configVar
     for node in cf.path:
       if node.isFlatten:
-        continue
-      fieldPath = newDotExpr(fieldPath, node.getRenamedName.ident)
-      let fieldChecker = newDotExpr(fieldPath, "isSome".ident)
-      if condition == nil:
-        condition = fieldChecker
+        configField = dotExpr(configField, ident node.fieldName)
       else:
-        condition = newNimNode(nnkInfix).add("and".ident).add(condition).add(fieldChecker)
-      fieldPath = newDotExpr(fieldPath, "get".ident)
+        fieldPath = newDotExpr(fieldPath, node.getRenamedName.ident)
+        let fieldChecker = newDotExpr(fieldPath, "isSome".ident)
+        if condition == nil:
+          condition = fieldChecker
+        else:
+          condition = newNimNode(nnkInfix).add("and".ident).add(condition).add(fieldChecker)
+        fieldPath = newDotExpr(fieldPath, "get".ident)
+    configField = dotExpr(configField, ident cf.node.fieldName)
 
     let setterName = genSym(nskProc, field & "CFSetter")
-    let fieldIdent = field.ident
     procs.add quote do:
-      proc `setterName`(s: var `confType`, cf: ref `CF`): bool {.nimcall, gcsafe.} =
+      proc `setterName`(`configVar`: var `confType`, cf: ref `CF`): bool {.nimcall, gcsafe.} =
         for `c` in cf.data:
           if `condition`:
-            cfSetter(s.`fieldIdent`, `fieldPath`)
+            cfSetter(`configField`, `fieldPath`)
             return true
 
     assignments.add quote do:
@@ -354,30 +358,30 @@ proc generateConfigFileSetters(confType, optType: NimNode,
     optT = optType[0][0]
     SetterProcType = genSym(nskType, "SetterProcType")
     (setterProcs, assignments, numSetters) = generateSetters(T, CF, confMap)
-  result = quote do:
-    type
-      `SetterProcType` = proc(
-        s: var `T`, cf: ref `CF`
-      ): bool {.nimcall, gcsafe, raises: [].}
+    stmtList = quote do:
+      type
+        `SetterProcType` = proc(
+          s: var `T`, cf: ref `CF`
+        ): bool {.nimcall, gcsafe, raises: [].}
 
-      `CF` = object
-          data*: seq[`optT`]
-          setters: array[`numSetters`, `SetterProcType`]
+        `CF` = object
+           data*: seq[`optT`]
+           setters: array[`numSetters`, `SetterProcType`]
 
-    proc defaultConfigFileSetter(
-        s: var `T`, cf: ref `CF`
-    ): bool {.nimcall, gcsafe, raises: [], used.} =
-      discard
+      proc defaultConfigFileSetter(
+          s: var `T`, cf: ref `CF`
+      ): bool {.nimcall, gcsafe, raises: [], used.} =
+        discard
 
-    `setterProcs`
+      `setterProcs`
 
-    proc new(_: type `CF`): ref `CF` =
-      new result
-      `assignments`
+      proc new(_: type `CF`): ref `CF` =
+        new result
+        `assignments`
 
-    new(`CF`)
+      new(`CF`)
 
-  debugMacroResult "ConfigFile Setters"
+  stmtList
 
 macro generateSecondarySources*(ConfType: type): untyped =
   let
@@ -388,28 +392,10 @@ macro generateSecondarySources*(ConfType: type): untyped =
 
   result = newTree(nnkStmtList)
   result.add newTree(nnkTypeSection, modelType)
-  echo repr model
-  echo repr modelType
-  #doAssert false
-  #[
-  ConfFileSection(children: @[ConfFileSection(children: @[], fieldName: "opt1", namePragma: "top-opt1", typ: string, defaultValue: "\"top_opt_1\"", isCommandOrArgument: false, isCaseBranch: false, isDiscriminator: false, isIgnore: false), ConfFileSection(children: @[], fieldName: "opt2", namePragma: "top-opt2", typ: bool, defaultValue: "true", isCommandOrArgument: false, isCaseBranch: false, isDiscriminator: false, isIgnore: false)], fieldName: "TopOptsConf", namePragma: "", typ: nil, defaultValue: "", isCommandOrArgument: false, isCaseBranch: false, isDiscriminator: false, isIgnore: false)
-  @[TopOptsConf_587202723 = object
-    top-opt1: Option[string]
-    top-opt2: Option[bool]
-  ]
-  proc opt1CFSetter_587202770(s`gensym22: var TopOptsConf;
-                            cf`gensym22: ref SecondarySources): bool {.nimcall,
-    gcsafe.} =
-  for c in cf`gensym22.data:
-    if c.top-opt1.isSome:
-      cfSetter(s`gensym22.opt1, c.top-opt1.get)
-      return true
-  ]#
 
   let confMap = model.generateConfMap(pathsCache)
-  #echo $confMap
-  #doAssert false
   result.add generateConfigFileSetters(ConfType, result[^1], confMap)
-  doAssert false
+
+  debugMacroResult "ConfigFile SecondarySources"
 
 {.pop.}

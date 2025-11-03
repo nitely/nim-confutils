@@ -21,7 +21,7 @@ type
       defaultValue: true
       name: "top-opt2" .}: bool
 
-when false:
+when true:
   suite "test TopOptsConf":
     test "top opts":
       let conf = TopOptsConf.load(cmdLine = @[
@@ -46,3 +46,82 @@ when true:
         conf.topOpts.opt1 == "foobar"
         conf.topOpts.opt2 == true
 
+    test "top opts defaults":
+      let conf = TestConfFlat.load(cmdLine = newSeq[string]())
+      check:
+        conf.topOpts.opt1 == "top_opt_1"
+        conf.topOpts.opt2 == true
+
+when true:
+  type
+    TestConfFlatArg = object
+      topOpts {.flatten.}: TopOptsConf
+      outerArg1 {.
+        defaultValue: "outerArg1 default"
+        desc: "outerArg1 desc"
+        name: "outer-arg1" }: string
+
+  suite "test TestConfFlatArg":
+    test "top opts arg":
+      let conf = TestConfFlatArg.load(cmdLine = @[
+        "--top-opt1=foobar",
+        "--top-opt2=true",
+        "--outer-arg1=bazquz"
+      ])
+      check:
+        conf.topOpts.opt1 == "foobar"
+        conf.topOpts.opt2 == true
+        conf.outerArg1 == "bazquz"
+
+    test "top opts arg defaults":
+      let conf = TestConfFlatArg.load(cmdLine = newSeq[string]())
+      check:
+        conf.topOpts.opt1 == "top_opt_1"
+        conf.topOpts.opt2 == true
+        conf.outerArg1 == "outerArg1 default"
+
+when true:
+  type
+    OuterCmd = enum
+      noCommand
+      outerCmd1
+
+    TestConfCmd = object
+      case cmd {.
+        command
+        defaultValue: OuterCmd.noCommand }: OuterCmd
+      of OuterCmd.noCommand:
+        outerArg {.
+          defaultValue: "outerArg default"
+          desc: "outerArg desc"
+          name: "outer-arg" }: string
+      of OuterCmd.outerCmd1:
+        topOpts {.flatten.}: TopOptsConf
+        outerArg1 {.
+          defaultValue: "outerArg1 default"
+          desc: "outerArg1 desc"
+          name: "outer-arg1" }: string
+
+  suite "test TestConfCmd":
+    test "top opts cmd":
+      let conf = TestConfCmd.load(cmdLine = @[
+        "outerCmd1",
+        "--top-opt1=foobar",
+        "--top-opt2=true",
+        "--outer-arg1=bazquz"
+      ])
+      check:
+        conf.cmd == OuterCmd.outerCmd1
+        conf.topOpts.opt1 == "foobar"
+        conf.topOpts.opt2 == true
+        conf.outerArg1 == "bazquz"
+
+    test "top opts cmd defaults":
+      let conf = TestConfCmd.load(cmdLine = @[
+        "outerCmd1"
+      ])
+      check:
+        conf.cmd == OuterCmd.outerCmd1
+        conf.topOpts.opt1 == "top_opt_1"
+        conf.topOpts.opt2 == true
+        conf.outerArg1 == "outerArg1 default"
