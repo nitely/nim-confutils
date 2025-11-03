@@ -18,7 +18,7 @@ type
 
     opt2 {.
       desc: "top opt 2"
-      defaultValue: true
+      defaultValue: false
       name: "top-opt2" .}: bool
 
 when true:
@@ -29,7 +29,7 @@ when true:
       ])
       check:
         conf.opt1 == "foobar"
-        conf.opt2 == true
+        conf.opt2 == false
 
 when true:
   type
@@ -50,7 +50,7 @@ when true:
       let conf = TestConfFlat.load(cmdLine = newSeq[string]())
       check:
         conf.topOpts.opt1 == "top_opt_1"
-        conf.topOpts.opt2 == true
+        conf.topOpts.opt2 == false
 
 when true:
   type
@@ -77,7 +77,7 @@ when true:
       let conf = TestConfFlatArg.load(cmdLine = newSeq[string]())
       check:
         conf.topOpts.opt1 == "top_opt_1"
-        conf.topOpts.opt2 == true
+        conf.topOpts.opt2 == false
         conf.outerArg1 == "outerArg1 default"
 
 when true:
@@ -123,5 +123,42 @@ when true:
       check:
         conf.cmd == OuterCmd.outerCmd1
         conf.topOpts.opt1 == "top_opt_1"
-        conf.topOpts.opt2 == true
+        conf.topOpts.opt2 == false
+        conf.outerArg1 == "outerArg1 default"
+
+when true:
+  type
+    TopOptsConfFlat = object
+      opts {.flatten.}: TopOptsConf
+      opt3 {.
+        desc: "top opt 3"
+        defaultValue: "top_opt_3"
+        name: "top-opt3" .}: string
+    TestConfFlatNested = object
+      topOpts {.flatten.}: TopOptsConfFlat
+      outerArg1 {.
+        defaultValue: "outerArg1 default"
+        desc: "outerArg1 desc"
+        name: "outer-arg1" }: string
+
+  suite "test TestConfFlatNested":
+    test "top opts nested":
+      let conf = TestConfFlatNested.load(cmdLine = @[
+        "--top-opt1=foo",
+        "--top-opt2=true",
+        "--top-opt3=bar",
+        "--outer-arg1=baz"
+      ])
+      check:
+        conf.topOpts.opts.opt1 == "foo"
+        conf.topOpts.opts.opt2 == true
+        conf.topOpts.opt3 == "bar"
+        conf.outerArg1 == "baz"
+
+    test "top opts nested defaults":
+      let conf = TestConfFlatNested.load(cmdLine = newSeq[string]())
+      check:
+        conf.topOpts.opts.opt1 == "top_opt_1"
+        conf.topOpts.opts.opt2 == false
+        conf.topOpts.opt3 == "top_opt_3"
         conf.outerArg1 == "outerArg1 default"

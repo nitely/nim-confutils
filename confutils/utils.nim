@@ -12,11 +12,7 @@ import std/macros
 proc dotExpr*(a, b: NimNode): NimNode =
   ## Return merged dot expr of `a.b`;
   ## `a` or `b` can be dot expr
-  if a.kind == nnkDotExpr and b.kind == nnkDotExpr:
-    newDotExpr(dotExpr(a, b[0]), b[1])
-  elif a.kind == nnkDotExpr:
-    newDotExpr(a, b)
-  elif b.kind == nnkDotExpr:
-    newDotExpr(newDotExpr(a, b[0]), b[1])
+  if b.kind == nnkDotExpr:
+    dotExpr(dotExpr(a, b[0]), b[1])
   else:
     newDotExpr(a, b)

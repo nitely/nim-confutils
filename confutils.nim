@@ -667,27 +667,43 @@ template debugMacroResult(macroName: string) {.dirty.} =
     echo "\n-------- ", macroName, " ----------------------"
     echo result.repr
 
-type ConfFieldDesc = object
-  field: FieldDescription
-  parent: FieldDescription
+type
+  ConfFieldDescRef = ref ConfFieldDesc
+  ConfFieldDesc = object
+    field: FieldDescription
+    parent: ConfFieldDescRef
 
-proc hasParent(cf: ConfFieldDesc): bool =
-  cf.parent != default(ConfFieldDesc).parent
+proc newConfFieldDesc(
+  field: FieldDescription, parent: ConfFieldDescRef
+): ConfFieldDescRef =
+  ConfFieldDescRef(field: field, parent: parent)
 
-proc confFields(typeImpl: NimNode): seq[ConfFieldDesc] =
+proc fieldCaseBranch(cf: ConfFieldDesc): NimNode =
+  if cf.parent != nil:
+    fieldCaseBranch(cf.parent[])
+  else:
+    cf.field.caseBranch
+
+proc fieldCaseField(cf: ConfFieldDesc): NimNode =
+  if cf.parent != nil:
+    fieldCaseField(cf.parent[])
+  else:
+    cf.field.caseField
+
+proc confFields(typeImpl: NimNode, parent: ConfFieldDescRef = nil): seq[ConfFieldDesc] =
+  result = newSeq[ConfFieldDesc]()
   for field in recordFields(typeImpl):
     if field.readPragma"flatten" != nil:
-      for f in recordFields(getImpl(field.typ)):
-      #for cf in confFields(getImpl(field.typ)):
-        if f.isDiscriminator:
+      for cf in confFields(getImpl(field.typ), newConfFieldDesc(field, parent)):
+        if cf.field.isDiscriminator:
           error "Case-object cannot be flattened"
-        result.add ConfFieldDesc(field: f, parent: field)
+        result.add cf
     else:
-      result.add ConfFieldDesc(field: field)
+      result.add ConfFieldDesc(field: field, parent: parent)
 
-proc genField(cf: ConfFieldDesc): NimNode =
-  if cf.hasParent:
-    dotExpr(cf.parent.name, cf.field.name)
+proc genFieldDotExpr(cf: ConfFieldDesc): NimNode =
+  if cf.parent != nil:
+    dotExpr(genFieldDotExpr(cf.parent[]), cf.field.name)
   else:
     cf.field.name
 
@@ -707,7 +723,7 @@ proc generateFieldSetters(RecordType: NimNode): NimNode =
       paramName = if namePragma != nil: namePragma
                   else: fieldName
       configVar = ident "config"
-      configField = dotExpr(configVar, genField(cf))
+      configField = dotExpr(configVar, genFieldDotExpr(cf))
       defaultValue = field.readPragma"defaultValue"
       completerName = ident($field.name & "Complete")
       isFieldDiscriminator = newLit field.isDiscriminator
@@ -860,14 +876,8 @@ proc cmdInfoFromType(T: NimNode): CmdInfo =
         if opt.defaultSubCmd == -1:
           error "The default value is not a valid enum value", defaultValue
 
-    let caseField = if cf.hasParent():
-      cf.parent.caseField
-    else:
-      field.caseField
-    let caseBranch = if cf.hasParent():
-      cf.parent.caseBranch
-    else:
-      field.caseBranch
+    let caseField = cf.fieldCaseField()
+    let caseBranch = cf.fieldCaseBranch()
     if caseField != nil and caseBranch != nil:
       let fieldName = caseField.getFieldName
       var discriminator = findOpt(discriminatorFields, $fieldName)
