@@ -713,7 +713,6 @@ proc fullFieldName(cf: ConfFieldDesc): string =
   else:
     $cf.field.name
 
-
 proc generateFieldSetters(RecordType: NimNode): NimNode =
   var recordDef = getImpl(RecordType)
   let makeDefaultValue = bindSym"makeDefaultValue"

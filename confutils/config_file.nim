@@ -276,7 +276,7 @@ proc generateTypes(root: ConfFileSection): seq[NimNode] =
       recList.add generateOptionalField(child.getRenamedName.ident, child.typ)
   result[index].putRecList(recList)
 
-proc generateConfMap(
+proc generateConfTails(
   node: ConfFileSection,
   result: var seq[ConfFileSectionTail],
   pathsCache: var seq[ConfFileSection]
@@ -289,12 +289,12 @@ proc generateConfMap(
     )
   else:
     for child in node.children:
-      generateConfMap(child, result, pathsCache)
+      generateConfTails(child, result, pathsCache)
   pathsCache.setLen pathsCache.len - 1
 
-proc generateConfMap(root: ConfFileSection, pathsCache: var seq[ConfFileSection]): seq[ConfFileSectionTail] =
+proc generateConfTails(root: ConfFileSection, pathsCache: var seq[ConfFileSection]): seq[ConfFileSectionTail] =
   for child in root.children:
-    generateConfMap(child, result, pathsCache)
+    generateConfTails(child, result, pathsCache)
 
 proc fullFieldName(cft: ConfFileSectionTail): string =
   result = ""
@@ -399,8 +399,8 @@ macro generateSecondarySources*(ConfType: type): untyped =
   result = newTree(nnkStmtList)
   result.add newTree(nnkTypeSection, modelType)
 
-  let confMap = model.generateConfMap(pathsCache)
-  result.add generateConfigFileSetters(ConfType, result[^1], confMap)
+  let confTails = model.generateConfTails(pathsCache)
+  result.add generateConfigFileSetters(ConfType, result[^1], confTails)
 
   debugMacroResult "ConfigFile SecondarySources"
 
