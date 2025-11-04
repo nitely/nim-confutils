@@ -46,8 +46,6 @@ type
     node: ConfFileSection
     path: seq[ConfFileSection]
 
-  ConfFileSectionTailMap = OrderedTable[string, ConfFileSectionTail]
-
   SectionParam = object
     isCommandOrArgument: bool
     isIgnore: bool
@@ -280,12 +278,12 @@ proc generateTypes(root: ConfFileSection): seq[NimNode] =
 
 proc generateConfMap(
   node: ConfFileSection,
-  result: var ConfFileSectionTailMap,
+  result: var seq[ConfFileSectionTail],
   pathsCache: var seq[ConfFileSection]
 ) =
   pathsCache.add node
   if node.children.len == 0:
-    result[node.fieldName] = ConfFileSectionTail(
+    result.add ConfFileSectionTail(
       node: node,
       path: pathsCache,
     )
@@ -294,9 +292,17 @@ proc generateConfMap(
       generateConfMap(child, result, pathsCache)
   pathsCache.setLen pathsCache.len - 1
 
-proc generateConfMap(root: ConfFileSection, pathsCache: var seq[ConfFileSection]): ConfFileSectionTailMap =
+proc generateConfMap(root: ConfFileSection, pathsCache: var seq[ConfFileSection]): seq[ConfFileSectionTail] =
   for child in root.children:
     generateConfMap(child, result, pathsCache)
+
+proc fullFieldName(cft: ConfFileSectionTail): string =
+  result = ""
+  for cf in cft.path:
+    if cf.isFlatten:
+      result.add cf.fieldName
+      result.add "Dot"
+  result.add cft.node.fieldName
 
 template cfSetter(a, b: untyped): untyped =
   when a is Option:
@@ -304,7 +310,7 @@ template cfSetter(a, b: untyped): untyped =
   else:
     a = b
 
-proc generateSetters(confType, CF: NimNode, confMap: ConfFileSectionTailMap):
+proc generateSetters(confType, CF: NimNode, cfst: seq[ConfFileSectionTail]):
     (NimNode, NimNode, int) =
   var
     procs = newStmtList()
@@ -312,7 +318,7 @@ proc generateSetters(confType, CF: NimNode, confMap: ConfFileSectionTailMap):
     numSetters = 0
 
   let c = "c".ident
-  for field, cf in confMap:
+  for cf in cfst:
     if cf.node.isCommandOrArgument or cf.node.isIgnore:
       assignments.add quote do:
         result.setters[`numSetters`] = defaultConfigFileSetter
@@ -336,7 +342,7 @@ proc generateSetters(confType, CF: NimNode, confMap: ConfFileSectionTailMap):
         fieldPath = newDotExpr(fieldPath, "get".ident)
     configField = dotExpr(configField, ident cf.node.fieldName)
 
-    let setterName = genSym(nskProc, field & "CFSetter")
+    let setterName = genSym(nskProc, cf.fullFieldName() & "CFSetter")
     procs.add quote do:
       proc `setterName`(`configVar`: var `confType`, cf: ref `CF`): bool {.nimcall, gcsafe.} =
         for `c` in cf.data:
@@ -351,13 +357,13 @@ proc generateSetters(confType, CF: NimNode, confMap: ConfFileSectionTailMap):
   result = (procs, assignments, numSetters)
 
 proc generateConfigFileSetters(confType, optType: NimNode,
-                               confMap: ConfFileSectionTailMap): NimNode =
+                               cfs: seq[ConfFileSectionTail]): NimNode =
   let
     CF = ident "SecondarySources"
     T = confType.getType[1]
     optT = optType[0][0]
     SetterProcType = genSym(nskType, "SetterProcType")
-    (setterProcs, assignments, numSetters) = generateSetters(T, CF, confMap)
+    (setterProcs, assignments, numSetters) = generateSetters(T, CF, cfs)
     stmtList = quote do:
       type
         `SetterProcType` = proc(

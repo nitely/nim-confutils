@@ -707,6 +707,13 @@ proc genFieldDotExpr(cf: ConfFieldDesc): NimNode =
   else:
     cf.field.name
 
+proc fullFieldName(cf: ConfFieldDesc): string =
+  if cf.parent != nil:
+    $fullFieldName(cf.parent[]) & "Dot" & $cf.field.name
+  else:
+    $cf.field.name
+
+
 proc generateFieldSetters(RecordType: NimNode): NimNode =
   var recordDef = getImpl(RecordType)
   let makeDefaultValue = bindSym"makeDefaultValue"
@@ -717,7 +724,7 @@ proc generateFieldSetters(RecordType: NimNode): NimNode =
   for cf in confFields(recordDef):
     let field = cf.field
     var
-      setterName = ident($field.name & "Setter")
+      setterName = ident(cf.fullFieldName() & "Setter")
       fieldName = field.name
       namePragma = field.readPragma"name"
       paramName = if namePragma != nil: namePragma
@@ -725,7 +732,7 @@ proc generateFieldSetters(RecordType: NimNode): NimNode =
       configVar = ident "config"
       configField = dotExpr(configVar, genFieldDotExpr(cf))
       defaultValue = field.readPragma"defaultValue"
-      completerName = ident($field.name & "Complete")
+      completerName = ident(cf.fullFieldName() & "Complete")
       isFieldDiscriminator = newLit field.isDiscriminator
 
     if defaultValue == nil:
