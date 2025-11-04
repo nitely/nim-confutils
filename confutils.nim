@@ -1241,7 +1241,6 @@ proc loadImpl[C, SecondarySources](
         except ValueError as err:
           fail "Option '" & opt.name & "' failed to parse: '" & err.msg & "'"
 
-  #doAssert activeCmds.len == secondarySourcesRef.setters.len
   for cmd in activeCmds:
     result.processMissingOpts(cmd)
 
