@@ -140,17 +140,33 @@ when useBufferedOutput:
     echo help
 
 else:
+  macro addToHelp(help: var string, m: varargs[typed]): untyped =
+    result = newNimNode(nnkStmtList)
+    for i in 0 ..< m.len:
+      case m[i].kind
+      of nnkStrLit .. nnkTripleStrLit:
+        let s = newLit m[i].strVal()
+        result.add quote do: `help`.add `s`
+      else:
+        discard
+
   template errorOutput(args: varargs[untyped]) =
-    try:
-      styledWrite stderr, args
-    except IOError, ValueError:
-      discard
+    if (when not declared(silent): false else: silent):
+      addToHelp(help, args)
+    else:
+      try:
+        styledWrite stderr, args
+      except IOError, ValueError:
+        discard
 
   template helpOutput(args: varargs[untyped]) =
-    try:
-      styledWrite stdout, args
-    except IOError, ValueError:
-      discard
+    if (when not declared(silent): false else: silent):
+      addToHelp(help, args)
+    else:
+      try:
+        styledWrite stdout, args
+      except IOError, ValueError:
+        discard
 
   template flushOutput =
     discard
@@ -248,7 +264,7 @@ template padding(output: string, desiredWidth: int): string =
 
 proc writeDesc(help: var string,
                appInfo: HelpAppInfo,
-               desc, defaultValue: string) =
+               desc, defaultValue: string, silent = false) =
   const descSpacing = "  "
   let
     descIndent = (5 + appInfo.namesWidth + descSpacing.len)
@@ -267,17 +283,17 @@ proc writeDesc(help: var string,
 
 proc writeLongDesc(help: var string,
                appInfo: HelpAppInfo,
-               desc: string) =
+               desc: string, silent = false) =
   let lines = split(desc, {'\n', '\r'})
   for line in lines:
     if line.len > 0:
       helpOutput "\p"
       helpOutput padding("", 5 + appInfo.namesWidth)
-      help.writeDesc appInfo, line, ""
+      help.writeDesc appInfo, line, "", silent = silent
 
 proc describeInvocation(help: var string,
                         cmd: CmdInfo, cmdInvocation: string,
-                        appInfo: HelpAppInfo) =
+                        appInfo: HelpAppInfo, silent = false) =
   helpOutput styleBright, "\p", fgCommand, cmdInvocation
   var longestArg = 0
 
@@ -307,8 +323,8 @@ proc describeInvocation(help: var string,
       let cliArg = " <" & arg.humaneName & ">"
       helpOutput fgArg, styleBright, cliArg
       helpOutput padding(cliArg, 6 + appInfo.namesWidth)
-      help.writeDesc appInfo, arg.desc, arg.defaultInHelpText
-      help.writeLongDesc appInfo, arg.longDesc
+      help.writeDesc appInfo, arg.desc, arg.defaultInHelpText, silent = silent
+      help.writeLongDesc appInfo, arg.longDesc, silent = silent
       helpOutput "\p"
 
 type
@@ -319,7 +335,7 @@ type
 
 proc describeOptions(help: var string,
                      cmd: CmdInfo, cmdInvocation: string,
-                     appInfo: HelpAppInfo, optionsType = normalOpts) =
+                     appInfo: HelpAppInfo, optionsType = normalOpts, silent = false) =
   if cmd.hasOpts:
     case optionsType
     of normalOpts:
@@ -357,8 +373,9 @@ proc describeOptions(help: var string,
       if opt.desc.len > 0:
         help.writeDesc appInfo,
                        opt.desc.replace("%t", opt.typename),
-                       opt.defaultInHelpText
-        help.writeLongDesc appInfo, opt.longDesc
+                       opt.defaultInHelpText,
+                       silent
+        help.writeLongDesc appInfo, opt.longDesc, silent = silent
 
       helpOutput "\p"
 
@@ -369,26 +386,29 @@ proc describeOptions(help: var string,
           helpOutput "\pWhen ", styleBright, fgBlue, opt.humaneName, resetStyle, " = ", fgGreen, subCmd.name
 
           if i == opt.defaultSubCmd: helpOutput " (default)"
-          help.describeOptions subCmd, cmdInvocation, appInfo, conditionalOpts
+          help.describeOptions subCmd, cmdInvocation, appInfo, conditionalOpts, silent = silent
 
   let subCmdDiscriminator = cmd.getSubCmdDiscriminator
   if subCmdDiscriminator != nil:
     let defaultCmdIdx = subCmdDiscriminator.defaultSubCmd
     if defaultCmdIdx != -1:
       let defaultCmd = subCmdDiscriminator.subCmds[defaultCmdIdx]
-      help.describeOptions defaultCmd, cmdInvocation, appInfo, defaultCmdOpts
+      help.describeOptions defaultCmd, cmdInvocation, appInfo, defaultCmdOpts, silent = silent
 
     helpOutput fgSection, "\pAvailable sub-commands:\p"
 
     for i, subCmd in subCmdDiscriminator.subCmds:
       if i != subCmdDiscriminator.defaultSubCmd:
         let subCmdInvocation = cmdInvocation & " " & subCmd.name
-        help.describeInvocation subCmd, subCmdInvocation, appInfo
-        help.describeOptions subCmd, subCmdInvocation, appInfo
+        help.describeInvocation subCmd, subCmdInvocation, appInfo, silent = silent
+        help.describeOptions subCmd, subCmdInvocation, appInfo, silent = silent
 
-proc showHelp(help: var string,
-              appInfo: HelpAppInfo,
-              activeCmds: openArray[CmdInfo]) =
+proc showHelpImpl(
+  help: var string,
+  appInfo: HelpAppInfo,
+  activeCmds: openArray[CmdInfo],
+  silent = false
+) =
   if appInfo.copyrightBanner.len > 0:
     helpOutput appInfo.copyrightBanner, "\p\p"
 
@@ -410,10 +430,16 @@ proc showHelp(help: var string,
 
   # Write out the app or script name
   helpOutput fgSection, "Usage: \p"
-  help.describeInvocation cmd, cmdInvocation, appInfo
-  help.describeOptions cmd, cmdInvocation, appInfo
+  help.describeInvocation cmd, cmdInvocation, appInfo, silent = silent
+  help.describeOptions cmd, cmdInvocation, appInfo, silent = silent
   helpOutput "\p"
 
+proc showHelp(
+  help: var string,
+  appInfo: HelpAppInfo,
+  activeCmds: openArray[CmdInfo]
+) =
+  showHelpImpl(help, appInfo, activeCmds)
   flushOutputAndQuit QuitSuccess
 
 func getNextArgIdx(cmd: CmdInfo, consumedArgIdx: int): int =
@@ -920,7 +946,8 @@ proc loadImpl[C, SecondarySources](
     secondarySources: proc (
         config: Configuration, sources: ref SecondarySources
     ) {.gcsafe, raises: [ConfigurationError].} = nil,
-    envVarsPrefix = appInvocation()
+    envVarsPrefix = appInvocation(),
+    sout: proc(s: string) {.gcsafe, raises: [].} = nil
 ): Configuration {.raises: [ConfigurationError].} =
   ## Loads a program configuration by parsing command-line arguments
   ## and a standard set of config files that can specify:
@@ -1099,7 +1126,11 @@ proc loadImpl[C, SecondarySources](
   template processHelpAndVersionOptions(optKey: string) =
     let key = optKey
     if cmpIgnoreStyle(key, "help") == 0:
-      help.showHelp lazyHelpAppInfo(), activeCmds
+      if sout != nil:
+        help.showHelpImpl lazyHelpAppInfo(), activeCmds, silent = true
+        sout help
+      else:
+        help.showHelp lazyHelpAppInfo(), activeCmds
     elif version.len > 0 and cmpIgnoreStyle(key, "version") == 0:
       help.helpOutput version, "\p"
       flushOutputAndQuit QuitSuccess
@@ -1200,12 +1231,14 @@ template load*(
     quitOnFailure = true,
     ignoreUnknown = false,
     secondarySources: untyped = nil,
-    envVarsPrefix = appInvocation()): untyped =
+    envVarsPrefix = appInvocation(),
+    sout: untyped = nil
+): untyped =
   block:
     let secondarySourcesRef = generateSecondarySources(Configuration)
     loadImpl(Configuration, cmdLine, version,
              copyrightBanner, printUsage, quitOnFailure, ignoreUnknown,
-             secondarySourcesRef, secondarySources, envVarsPrefix)
+             secondarySourcesRef, secondarySources, envVarsPrefix, sout)
 
 func defaults*(Configuration: type): Configuration =
   load(Configuration, cmdLine = @[], printUsage = false, quitOnFailure = false)
