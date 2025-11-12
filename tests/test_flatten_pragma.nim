@@ -228,3 +228,50 @@ suite "test TestConfFlatNested":
       conf.topOpts.opts.opt2 == true
       conf.topOpts.opt3 == "baz"
       conf.outerArg1 == "bar"
+
+type
+  TopOptsConfNameConflict = object
+    opt1 {.
+      desc: "top opt 1"
+      defaultValue: "top_opt_1"
+      name: "top-opt1" .}: string
+
+  TestConfNameConflict = object
+    topOpts {.flatten.}: TopOptsConfNameConflict
+    outerArg1 {.
+      desc: "top opt 1"
+      defaultValue: "top_opt_1"
+      name: "top-opt1" .}: string
+
+  TopOptsConfFieldConflict = object
+    opt1 {.
+      desc: "top opt 1"
+      defaultValue: "top_opt_1" .}: string
+
+  TestConfFieldConflict = object
+    topOpts {.flatten.}: TopOptsConfFieldConflict
+    opt1 {.
+      desc: "top opt 1"
+      defaultValue: "top_opt_1" .}: string
+
+  TopOptsConfFieldNameConflict = object
+    topOpt1 {.
+      desc: "top opt 1"
+      defaultValue: "top_opt_1"
+      name: "opt1" .}: string
+
+  TestConfFieldNameConflict = object
+    topOpts {.flatten.}: TopOptsConfFieldNameConflict
+    opt1 {.
+      desc: "top opt 1"
+      defaultValue: "top_opt_1" .}: string
+
+suite "test flatten option redefinition":
+  test "redefine name top-opt1":
+    check not compiles(TestConfNameConflict.load())
+
+  test "redefine field opt1":
+    check not compiles(TestConfFieldConflict.load())
+
+  test "redefine field name opt1":
+    check not compiles(TestConfFieldNameConflict.load())
