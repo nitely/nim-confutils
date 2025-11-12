@@ -229,49 +229,51 @@ suite "test TestConfFlatNested":
       conf.topOpts.opt3 == "baz"
       conf.outerArg1 == "bar"
 
-type
-  TopOptsConfNameConflict = object
-    opt1 {.
-      desc: "top opt 1"
-      defaultValue: "top_opt_1"
-      name: "top-opt1" .}: string
-
-  TestConfNameConflict = object
-    topOpts {.flatten.}: TopOptsConfNameConflict
-    outerArg1 {.
-      desc: "top opt 1"
-      defaultValue: "top_opt_1"
-      name: "top-opt1" .}: string
-
-  TopOptsConfFieldConflict = object
-    opt1 {.
-      desc: "top opt 1"
-      defaultValue: "top_opt_1" .}: string
-
-  TestConfFieldConflict = object
-    topOpts {.flatten.}: TopOptsConfFieldConflict
-    opt1 {.
-      desc: "top opt 1"
-      defaultValue: "top_opt_1" .}: string
-
-  TopOptsConfFieldNameConflict = object
-    topOpt1 {.
-      desc: "top opt 1"
-      defaultValue: "top_opt_1"
-      name: "opt1" .}: string
-
-  TestConfFieldNameConflict = object
-    topOpts {.flatten.}: TopOptsConfFieldNameConflict
-    opt1 {.
-      desc: "top opt 1"
-      defaultValue: "top_opt_1" .}: string
-
 suite "test flatten option redefinition":
   test "redefine name top-opt1":
-    check not compiles(TestConfNameConflict.load())
+    type
+      TopOptsConfConflict = object
+        opt1 {.
+          desc: "top opt 1"
+          defaultValue: "top_opt_1"
+          name: "top-opt1" .}: string
+
+      TestConfConflict = object
+        topOpts {.flatten.}: TopOptsConfConflict
+        outerArg1 {.
+          desc: "top opt 1"
+          defaultValue: "top_opt_1"
+          name: "top-opt1" .}: string
+
+    check not compiles(TestConfConflict.load())
 
   test "redefine field opt1":
-    check not compiles(TestConfFieldConflict.load())
+    type
+      TopOptsConfConflict = object
+        opt1 {.
+          desc: "top opt 1"
+          defaultValue: "top_opt_1" .}: string
+
+      TestConfConflict = object
+        topOpts {.flatten.}: TopOptsConfConflict
+        opt1 {.
+          desc: "top opt 1"
+          defaultValue: "top_opt_1" .}: string
+
+    check not compiles(TestConfConflict.load())
 
   test "redefine field name opt1":
-    check not compiles(TestConfFieldNameConflict.load())
+    type
+      TopOptsConfConflict = object
+        topOpt1 {.
+          desc: "top opt 1"
+          defaultValue: "top_opt_1"
+          name: "opt1" .}: string
+
+      TestConfConflict = object
+        topOpts {.flatten.}: TopOptsConfConflict
+        opt1 {.
+          desc: "top opt 1"
+          defaultValue: "top_opt_1" .}: string
+
+    check not compiles(TestConfConflict.load())
