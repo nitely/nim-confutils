@@ -277,3 +277,37 @@ suite "test flatten option redefinition":
           defaultValue: "top_opt_1" .}: string
 
     check not compiles(TestConfConflict.load())
+
+type
+  Lvl1Cmd = enum
+    lvlCmd1
+
+  TopCmdConf = object
+    case cmd {.command.}: Lvl1Cmd
+    of Lvl1Cmd.lvlCmd1:
+      lvl1Arg1 {.
+        defaultValue: "lvl1Arg1 default"
+        desc: "lvl1Arg1 desc"
+        name: "lvl1-arg1" }: string
+
+  TestConfCmdFlat = object
+    topCmd {.flatten.}: TopCmdConf
+
+suite "test TestConfCmd":
+  test "top cmd":
+    let conf = TopCmdConf.load(cmdLine = @[
+      "lvlCmd1",
+      "--lvl1-arg1=foo"
+    ])
+    check:
+      conf.cmd == lvlCmd1
+      conf.lvl1Arg1 == "foo"
+
+  test "cmd flatten":
+    let conf = TestConfCmdFlat.load(cmdLine = @[
+      "lvlCmd1",
+      "--lvl1-arg1=foo"
+    ])
+    check:
+      conf.topCmd.cmd == lvlCmd1
+      conf.topCmd.lvl1Arg1 == "foo"

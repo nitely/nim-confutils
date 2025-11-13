@@ -269,9 +269,12 @@ proc generateTypes(root: ConfFileSection): seq[NimNode] =
         result.add types
     elif child.isFlatten:
       var types = generateTypes(child)
-      for t in types:
-        t[2][2].expectKind nnkRecList
-        recList.add t[2][2]
+      #for t in types:
+      #  echo repr t
+      types[0][2][2].expectKind nnkRecList
+      recList.add types[0][2][2]
+      for i in 1 ..< types.len:
+        result.add types[i]
     else:
       recList.add generateOptionalField(child.getRenamedName.ident, child.typ)
   result[index].putRecList(recList)
@@ -393,6 +396,9 @@ macro generateSecondarySources*(ConfType: type): untyped =
   let
     model = generateConfigFileModel(ConfType)
     modelType = generateTypes(model)
+  #echo "modelType"
+  #for t in modelType:
+  #  echo repr t
   var
     pathsCache: seq[ConfFileSection]
 

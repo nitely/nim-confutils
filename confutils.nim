@@ -679,24 +679,26 @@ proc newConfFieldDesc(
   ConfFieldDescRef(field: field, parent: parent)
 
 proc fieldCaseBranch(cf: ConfFieldDesc): NimNode =
-  if cf.parent != nil:
+  if cf.field.caseBranch != nil:
+    cf.field.caseBranch
+  elif cf.parent != nil:
     fieldCaseBranch(cf.parent[])
   else:
-    cf.field.caseBranch
+    nil
 
 proc fieldCaseField(cf: ConfFieldDesc): NimNode =
-  if cf.parent != nil:
+  if cf.field.caseField != nil:
+    cf.field.caseField
+  elif cf.parent != nil:
     fieldCaseField(cf.parent[])
   else:
-    cf.field.caseField
+    nil
 
 proc confFields(typeImpl: NimNode, parent: ConfFieldDescRef = nil): seq[ConfFieldDesc] =
   result = newSeq[ConfFieldDesc]()
   for field in recordFields(typeImpl):
     if field.readPragma"flatten" != nil:
       for cf in confFields(getImpl(field.typ), newConfFieldDesc(field, parent)):
-        if cf.field.isDiscriminator:
-          error "Case-object cannot be flattened"
         result.add cf
     else:
       result.add ConfFieldDesc(field: field, parent: parent)
