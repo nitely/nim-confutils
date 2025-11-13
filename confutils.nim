@@ -717,7 +717,8 @@ proc fullFieldName(cf: ConfFieldDesc): string =
 
 proc fieldCaseFieldFullName(cf: ConfFieldDesc): string =
   if cf.field.caseField != nil:
-    if cf.parent != nil:
+    # return to workaround Nim 1.6 bug
+    return if cf.parent != nil:
       fullFieldName(cf.parent[]) & "Dot" & $cf.field.caseField.getFieldName
     else:
       $cf.field.caseField.getFieldName
