@@ -282,7 +282,7 @@ type
   Lvl1Cmd = enum
     lvlCmd1
 
-  TopCmdConf = object
+  Top1LvlSubCmdConf = object
     case cmd {.command.}: Lvl1Cmd
     of Lvl1Cmd.lvlCmd1:
       lvl1Arg1 {.
@@ -290,24 +290,70 @@ type
         desc: "lvl1Arg1 desc"
         name: "lvl1-arg1" }: string
 
-  TestConfCmdFlat = object
-    topCmd {.flatten.}: TopCmdConf
+  TestConfSubCmdFlat = object
+    topCmd {.flatten.}: Top1LvlSubCmdConf
 
-suite "test TestConfCmd":
+suite "test one lvl flatten subcommand":
   test "top cmd":
-    let conf = TopCmdConf.load(cmdLine = @[
+    let conf = Top1LvlSubCmdConf.load(cmdLine = @[
       "lvlCmd1",
       "--lvl1-arg1=foo"
     ])
     check:
-      conf.cmd == lvlCmd1
+      conf.cmd == Lvl1Cmd.lvlCmd1
       conf.lvl1Arg1 == "foo"
 
-  test "cmd flatten":
-    let conf = TestConfCmdFlat.load(cmdLine = @[
+  test "top cmd flatten":
+    let conf = TestConfSubCmdFlat.load(cmdLine = @[
       "lvlCmd1",
       "--lvl1-arg1=foo"
     ])
     check:
-      conf.topCmd.cmd == lvlCmd1
+      conf.topCmd.cmd == Lvl1Cmd.lvlCmd1
       conf.topCmd.lvl1Arg1 == "foo"
+
+  test "redefine cmd flatten opt":
+    type
+      TestConfSubCmdFlatConflict = object
+        lvl1Arg1 {.
+          defaultValue: "lvl1Arg1 default"
+          desc: "lvl1Arg1 desc"
+          name: "lvl1-arg1" }: string
+        topCmd {.flatten.}: Top1LvlSubCmdConf
+
+    check not compiles(TestConfSubCmdFlatConflict.load())
+
+type
+  TopCmd1 = enum
+    topLvlCmd1
+    topLvlCmd2
+
+  TestConf2LvlsFlatSubCmd = object
+    case cmd {.command.}: TopCmd1
+    of TopCmd1.topLvlCmd1:
+      topCmd1 {.flatten.}: Top1LvlSubCmdConf
+    of TopCmd1.topLvlCmd2:
+      topCmd2 {.flatten.}: Top1LvlSubCmdConf
+
+suite "test two lvls flatten subcommands":
+  test "topLvlCmd1 lvlCmd1":
+    let conf = TestConf2LvlsFlatSubCmd.load(cmdLine = @[
+      "topLvlCmd1",
+      "lvlCmd1",
+      "--lvl1-arg1=foo"
+    ])
+    check:
+      conf.cmd == TopCmd1.topLvlCmd1
+      conf.topCmd1.cmd == Lvl1Cmd.lvlCmd1
+      conf.topCmd1.lvl1Arg1 == "foo"
+
+  test "topLvlCmd2 lvlCmd1":
+    let conf = TestConf2LvlsFlatSubCmd.load(cmdLine = @[
+      "topLvlCmd2",
+      "lvlCmd1",
+      "--lvl1-arg1=foo"
+    ])
+    check:
+      conf.cmd == TopCmd1.topLvlCmd2
+      conf.topCmd2.cmd == Lvl1Cmd.lvlCmd1
+      conf.topCmd2.lvl1Arg1 == "foo"

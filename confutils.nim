@@ -715,6 +715,17 @@ proc fullFieldName(cf: ConfFieldDesc): string =
   else:
     $cf.field.name
 
+proc fieldCaseFieldFullName(cf: ConfFieldDesc): string =
+  if cf.field.caseField != nil:
+    if cf.parent != nil:
+      fullFieldName(cf.parent[]) & "Dot" & $cf.field.caseField.getFieldName
+    else:
+      $cf.field.caseField.getFieldName
+  elif cf.parent != nil:
+    fieldCaseFieldFullName(cf.parent[])
+  else:
+    error "caseField not found"
+
 proc generateFieldSetters(RecordType: NimNode): NimNode =
   var recordDef = getImpl(RecordType)
   let makeDefaultValue = bindSym"makeDefaultValue"
@@ -784,6 +795,8 @@ proc generateFieldSetters(RecordType: NimNode): NimNode =
   debugMacroResult "Field Setters"
 
 func checkDuplicate(cmd: CmdInfo, opt: OptInfo, fieldName: NimNode) =
+  if opt.kind == Discriminator and opt.isCommand:
+    return
   for x in cmd.opts:
     if opt.name == x.name:
       error "duplicate name detected: " & opt.name, fieldName
@@ -818,7 +831,7 @@ proc cmdInfoFromType(T: NimNode): CmdInfo =
 
   var
     recordDef = getImpl(T)
-    discriminatorFields = newSeq[OptInfo]()
+    discriminatorFields = newSeq[(string, OptInfo)]()
     fieldIdx = 0
 
   for cf in confFields(recordDef):
@@ -858,7 +871,7 @@ proc cmdInfoFromType(T: NimNode): CmdInfo =
     inc fieldIdx
 
     if field.isDiscriminator:
-      discriminatorFields.add opt
+      discriminatorFields.add (cf.fullFieldName(), opt)
       let cmdType = field.typ.getImpl[^1]
       if cmdType.kind != nnkEnumTy:
         error "Only enums are supported as case object discriminators", field.name
@@ -887,11 +900,14 @@ proc cmdInfoFromType(T: NimNode): CmdInfo =
     let caseField = cf.fieldCaseField()
     let caseBranch = cf.fieldCaseBranch()
     if caseField != nil and caseBranch != nil:
-      let fieldName = caseField.getFieldName
-      var discriminator = findOpt(discriminatorFields, $fieldName)
+      let fieldName = cf.fieldCaseFieldFullName()
+      var discriminator: OptInfo
+      for (fname, fopt) in discriminatorFields:
+        if fieldName == fname:
+          discriminator = fopt
 
       if discriminator == nil:
-        error "Unable to find " & $fieldName
+        error "Unable to find " & $caseField.getFieldName
 
       if caseBranch.kind == nnkElse:
         error "Sub-command parameters cannot appear in an else branch. " &
