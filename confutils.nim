@@ -715,16 +715,16 @@ proc fullFieldName(cf: ConfFieldDesc): string =
   else:
     $cf.field.name
 
-proc fieldCaseFieldFullName(cf: ConfFieldDesc): string 
-  return if cf.field.caseField != nil:
+proc fieldCaseFieldFullName(cf: ConfFieldDesc): string =
+  if cf.field.caseField != nil:
+    # return to workaround Nim 1.6 bug
     if cf.parent != nil:
       fullFieldName(cf.parent[]) & "Dot" & $cf.field.caseField.getFieldName
     else:
       $cf.field.caseField.getFieldName
-  elif cf.parent != nil:
-    fieldCaseFieldFullName(cf.parent[])
   else:
-    doAssert false, "caseField not found"
+    doAssert cf.parent != nil, "caseField not found"
+    fieldCaseFieldFullName(cf.parent[])
 
 proc generateFieldSetters(RecordType: NimNode): NimNode =
   var recordDef = getImpl(RecordType)
