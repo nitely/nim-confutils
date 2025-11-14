@@ -29,7 +29,7 @@ type
       defaultValue: false
       name: "top-opt2" .}: bool
 
-suite "test TopOptsConf":
+suite "test top opts":
   test "top opts":
     let conf = TopOptsConf.load(cmdLine = @[
       "--top-opt1=foobar"
@@ -44,11 +44,11 @@ suite "test TopOptsConf":
       conf.opt1 == "foo"
       conf.opt2 == true
 
-type
-  TestConfFlat = object
-    topOpts {.flatten.}: TopOptsConf
+suite "test flatten top opts":
+  type
+    TestConfFlat = object
+      topOpts {.flatten.}: TopOptsConf
 
-suite "test TestConfFlat":
   test "top opts flat":
     let conf = TestConfFlat.load(cmdLine = @[
       "--top-opt1=foobar",
@@ -70,17 +70,17 @@ suite "test TestConfFlat":
       conf.topOpts.opt1 == "foo"
       conf.topOpts.opt2 == true
 
-type
-  TestConfFlatArg = object
-    topOpts {.flatten.}: TopOptsConf
-    outerArg1 {.
-      defaultValue: "outerArg1 default"
-      desc: "outerArg1 desc"
-      name: "outer-arg1" }: string
+suite "test flatten top opts with extra opt":
+  type
+    TestConfFlat = object
+      topOpts {.flatten.}: TopOptsConf
+      outerArg1 {.
+        defaultValue: "outerArg1 default"
+        desc: "outerArg1 desc"
+        name: "outer-arg1" }: string
 
-suite "test TestConfFlatArg":
   test "top opts arg":
-    let conf = TestConfFlatArg.load(cmdLine = @[
+    let conf = TestConfFlat.load(cmdLine = @[
       "--top-opt1=foobar",
       "--top-opt2=true",
       "--outer-arg1=bazquz"
@@ -91,115 +91,37 @@ suite "test TestConfFlatArg":
       conf.outerArg1 == "bazquz"
 
   test "top opts arg defaults":
-    let conf = TestConfFlatArg.load(cmdLine = newSeq[string]())
+    let conf = TestConfFlat.load(cmdLine = newSeq[string]())
     check:
       conf.topOpts.opt1 == "top_opt_1"
       conf.topOpts.opt2 == false
       conf.outerArg1 == "outerArg1 default"
 
   test "top opts arg file":
-    let conf = TestConfFlatArg.load(secondarySources = loadFile(TestConfFlatArg, "flatten.toml"))
+    let conf = TestConfFlat.load(secondarySources = loadFile(TestConfFlat, "flatten.toml"))
     check:
       conf.topOpts.opt1 == "foo"
       conf.topOpts.opt2 == true
       conf.outerArg1 == "bar"
 
-type
-  OuterCmd = enum
-    noCommand
-    outerCmd1
-
-  TestConfCmd = object
-    case cmd {.
-      command
-      defaultValue: OuterCmd.noCommand }: OuterCmd
-    of OuterCmd.noCommand:
+suite "test nested flatten top opts":
+  type
+    TopOptsConfFlat = object
       opts {.flatten.}: TopOptsConf
-      outerArg {.
-        defaultValue: "outerArg default"
-        desc: "outerArg desc"
-        name: "outer-arg" }: string
-    of OuterCmd.outerCmd1:
-      opts1 {.flatten.}: TopOptsConf
+      opt3 {.
+        desc: "top opt 3"
+        defaultValue: "top_opt_3"
+        name: "top-opt3" .}: string
+
+    TestConfFlat = object
+      topOpts {.flatten.}: TopOptsConfFlat
       outerArg1 {.
         defaultValue: "outerArg1 default"
         desc: "outerArg1 desc"
         name: "outer-arg1" }: string
 
-suite "test TestConfCmd":
-  test "top opts cmd":
-    let conf = TestConfCmd.load(cmdLine = @[
-      "--top-opt1=foobar",
-      "--top-opt2=true",
-      "--outer-arg=bazquz"
-    ])
-    check:
-      conf.cmd == OuterCmd.noCommand
-      conf.opts.opt1 == "foobar"
-      conf.opts.opt2 == true
-      conf.outerArg == "bazquz"
-
-  test "top opts cmd 1":
-    let conf = TestConfCmd.load(cmdLine = @[
-      "outerCmd1",
-      "--top-opt1=foobar",
-      "--top-opt2=true",
-      "--outer-arg1=bazquz"
-    ])
-    check:
-      conf.cmd == OuterCmd.outerCmd1
-      conf.opts1.opt1 == "foobar"
-      conf.opts1.opt2 == true
-      conf.outerArg1 == "bazquz"
-
-  test "top opts cmd 1 defaults":
-    let conf = TestConfCmd.load(cmdLine = @[
-      "outerCmd1"
-    ])
-    check:
-      conf.cmd == OuterCmd.outerCmd1
-      conf.opts1.opt1 == "top_opt_1"
-      conf.opts1.opt2 == false
-      conf.outerArg1 == "outerArg1 default"
-
-  test "top opts cmd file":
-    let conf = TestConfCmd.load(
-      secondarySources = loadFile(TestConfCmd, "flatten_cmd.toml")
-    )
-    check:
-      conf.cmd == OuterCmd.noCommand
-      conf.opts.opt1 == "foo"
-      conf.opts.opt2 == true
-      conf.outerArg == "bar"
-
-  test "top opts cmd 1 file":
-    let conf = TestConfCmd.load(
-      cmdLine = @["outerCmd1"],
-      secondarySources = loadFile(TestConfCmd, "flatten_cmd.toml")
-    )
-    check:
-      conf.cmd == OuterCmd.outerCmd1
-      conf.opts1.opt1 == "baz"
-      conf.opts1.opt2 == true
-      conf.outerArg1 == "quz"
-
-type
-  TopOptsConfFlat = object
-    opts {.flatten.}: TopOptsConf
-    opt3 {.
-      desc: "top opt 3"
-      defaultValue: "top_opt_3"
-      name: "top-opt3" .}: string
-  TestConfFlatNested = object
-    topOpts {.flatten.}: TopOptsConfFlat
-    outerArg1 {.
-      defaultValue: "outerArg1 default"
-      desc: "outerArg1 desc"
-      name: "outer-arg1" }: string
-
-suite "test TestConfFlatNested":
   test "top opts nested":
-    let conf = TestConfFlatNested.load(cmdLine = @[
+    let conf = TestConfFlat.load(cmdLine = @[
       "--top-opt1=foo",
       "--top-opt2=true",
       "--top-opt3=bar",
@@ -212,7 +134,7 @@ suite "test TestConfFlatNested":
       conf.outerArg1 == "baz"
 
   test "top opts nested defaults":
-    let conf = TestConfFlatNested.load(cmdLine = newSeq[string]())
+    let conf = TestConfFlat.load(cmdLine = newSeq[string]())
     check:
       conf.topOpts.opts.opt1 == "top_opt_1"
       conf.topOpts.opts.opt2 == false
@@ -220,8 +142,8 @@ suite "test TestConfFlatNested":
       conf.outerArg1 == "outerArg1 default"
 
   test "top opts nested file":
-    let conf = TestConfFlatNested.load(
-      secondarySources = loadFile(TestConfFlatNested, "flatten.toml")
+    let conf = TestConfFlat.load(
+      secondarySources = loadFile(TestConfFlat, "flatten.toml")
     )
     check:
       conf.topOpts.opts.opt1 == "foo"
@@ -279,28 +201,109 @@ suite "test flatten option redefinition":
     check not compiles(TestConfConflict.load())
 
 type
-  Lvl1Cmd = enum
+  OuterCmd = enum
+    noCommand
+    outerCmd1
+
+suite "test flatten opts in subcommand":
+  type
+    TestConfCmd = object
+      case cmd {.
+        command
+        defaultValue: OuterCmd.noCommand }: OuterCmd
+      of OuterCmd.noCommand:
+        opts {.flatten.}: TopOptsConf
+        outerArg {.
+          defaultValue: "outerArg default"
+          desc: "outerArg desc"
+          name: "outer-arg" }: string
+      of OuterCmd.outerCmd1:
+        opts1 {.flatten.}: TopOptsConf
+        outerArg1 {.
+          defaultValue: "outerArg1 default"
+          desc: "outerArg1 desc"
+          name: "outer-arg1" }: string
+
+  test "top opts cmd":
+    let conf = TestConfCmd.load(cmdLine = @[
+      "--top-opt1=foobar",
+      "--top-opt2=true",
+      "--outer-arg=bazquz"
+    ])
+    check:
+      conf.cmd == OuterCmd.noCommand
+      conf.opts.opt1 == "foobar"
+      conf.opts.opt2 == true
+      conf.outerArg == "bazquz"
+
+  test "top opts cmd 1":
+    let conf = TestConfCmd.load(cmdLine = @[
+      "outerCmd1",
+      "--top-opt1=foobar",
+      "--top-opt2=true",
+      "--outer-arg1=bazquz"
+    ])
+    check:
+      conf.cmd == OuterCmd.outerCmd1
+      conf.opts1.opt1 == "foobar"
+      conf.opts1.opt2 == true
+      conf.outerArg1 == "bazquz"
+
+  test "top opts cmd 1 defaults":
+    let conf = TestConfCmd.load(cmdLine = @[
+      "outerCmd1"
+    ])
+    check:
+      conf.cmd == OuterCmd.outerCmd1
+      conf.opts1.opt1 == "top_opt_1"
+      conf.opts1.opt2 == false
+      conf.outerArg1 == "outerArg1 default"
+
+  test "top opts cmd file":
+    let conf = TestConfCmd.load(
+      secondarySources = loadFile(TestConfCmd, "flatten_cmd.toml")
+    )
+    check:
+      conf.cmd == OuterCmd.noCommand
+      conf.opts.opt1 == "foo"
+      conf.opts.opt2 == true
+      conf.outerArg == "bar"
+
+  test "top opts cmd 1 file":
+    let conf = TestConfCmd.load(
+      cmdLine = @["outerCmd1"],
+      secondarySources = loadFile(TestConfCmd, "flatten_cmd.toml")
+    )
+    check:
+      conf.cmd == OuterCmd.outerCmd1
+      conf.opts1.opt1 == "baz"
+      conf.opts1.opt2 == true
+      conf.outerArg1 == "quz"
+
+type
+  LvlCmd1 = enum
     lvlCmd1
 
-  Top1LvlSubCmdConf = object
-    case cmd {.command.}: Lvl1Cmd
-    of Lvl1Cmd.lvlCmd1:
-      lvl1Arg1 {.
-        defaultValue: "lvl1Arg1 default"
-        desc: "lvl1Arg1 desc"
-        name: "lvl1-arg1" }: string
-
-  TestConfSubCmdFlat = object
-    topCmd {.flatten.}: Top1LvlSubCmdConf
-
 suite "test one lvl flatten subcommand":
+  type
+    TopSubCmdConf = object
+      case cmd {.command.}: LvlCmd1
+      of LvlCmd1.lvlCmd1:
+        lvl1Arg1 {.
+          defaultValue: "lvl1Arg1 default"
+          desc: "lvl1Arg1 desc"
+          name: "lvl1-arg1" }: string
+
+    TestConfSubCmdFlat = object
+      topCmd {.flatten.}: TopSubCmdConf
+
   test "top cmd":
-    let conf = Top1LvlSubCmdConf.load(cmdLine = @[
+    let conf = TopSubCmdConf.load(cmdLine = @[
       "lvlCmd1",
       "--lvl1-arg1=foo"
     ])
     check:
-      conf.cmd == Lvl1Cmd.lvlCmd1
+      conf.cmd == LvlCmd1.lvlCmd1
       conf.lvl1Arg1 == "foo"
 
   test "top cmd flatten":
@@ -309,7 +312,7 @@ suite "test one lvl flatten subcommand":
       "--lvl1-arg1=foo"
     ])
     check:
-      conf.topCmd.cmd == Lvl1Cmd.lvlCmd1
+      conf.topCmd.cmd == LvlCmd1.lvlCmd1
       conf.topCmd.lvl1Arg1 == "foo"
 
   test "redefine cmd flatten opt":
@@ -319,7 +322,7 @@ suite "test one lvl flatten subcommand":
           defaultValue: "lvl1Arg1 default"
           desc: "lvl1Arg1 desc"
           name: "lvl1-arg1" }: string
-        topCmd {.flatten.}: Top1LvlSubCmdConf
+        topCmd {.flatten.}: TopSubCmdConf
 
     check not compiles(TestConfSubCmdFlatConflict.load())
 
@@ -328,14 +331,23 @@ type
     topLvlCmd1
     topLvlCmd2
 
-  TestConf2LvlsFlatSubCmd = object
-    case cmd {.command.}: TopCmd1
-    of TopCmd1.topLvlCmd1:
-      topCmd1 {.flatten.}: Top1LvlSubCmdConf
-    of TopCmd1.topLvlCmd2:
-      topCmd2 {.flatten.}: Top1LvlSubCmdConf
-
 suite "test two lvls flatten subcommands":
+  type
+    TopSubCmdConf = object
+      case cmd {.command.}: LvlCmd1
+      of LvlCmd1.lvlCmd1:
+        lvl1Arg1 {.
+          defaultValue: "lvl1Arg1 default"
+          desc: "lvl1Arg1 desc"
+          name: "lvl1-arg1" }: string
+
+    TestConf2LvlsFlatSubCmd = object
+      case cmd {.command.}: TopCmd1
+      of TopCmd1.topLvlCmd1:
+        topCmd1 {.flatten.}: TopSubCmdConf
+      of TopCmd1.topLvlCmd2:
+        topCmd2 {.flatten.}: TopSubCmdConf
+
   test "topLvlCmd1 lvlCmd1":
     let conf = TestConf2LvlsFlatSubCmd.load(cmdLine = @[
       "topLvlCmd1",
@@ -344,7 +356,7 @@ suite "test two lvls flatten subcommands":
     ])
     check:
       conf.cmd == TopCmd1.topLvlCmd1
-      conf.topCmd1.cmd == Lvl1Cmd.lvlCmd1
+      conf.topCmd1.cmd == LvlCmd1.lvlCmd1
       conf.topCmd1.lvl1Arg1 == "foo"
 
   test "topLvlCmd2 lvlCmd1":
@@ -355,5 +367,51 @@ suite "test two lvls flatten subcommands":
     ])
     check:
       conf.cmd == TopCmd1.topLvlCmd2
-      conf.topCmd2.cmd == Lvl1Cmd.lvlCmd1
+      conf.topCmd2.cmd == LvlCmd1.lvlCmd1
       conf.topCmd2.lvl1Arg1 == "foo"
+
+type
+  LvlCmd2 = enum
+    lvlCmd2
+
+suite "test nested flatten subcommands":
+  type
+    TopSubCmdConf2 = object
+      case cmd {.command.}: LvlCmd2
+      of LvlCmd2.lvlCmd2:
+        lvl2Arg1 {.
+          defaultValue: "lvl2Arg1 default"
+          desc: "lvl2Arg1 desc"
+          name: "lvl2-arg1" }: string
+
+    TopSubCmdConf = object
+      case cmd {.command.}: LvlCmd1
+      of LvlCmd1.lvlCmd1:
+        lvl1Arg1 {.
+          defaultValue: "lvl1Arg1 default"
+          desc: "lvl1Arg1 desc"
+          name: "lvl1-arg1" }: string
+
+        topCmd2 {.flatten.}: TopSubCmdConf2
+
+    TestConf2LvlsFlatSubCmd = object
+      case cmd {.command.}: TopCmd1
+      of TopCmd1.topLvlCmd1:
+        topCmd1 {.flatten.}: TopSubCmdConf
+      of TopCmd1.topLvlCmd2:
+        discard
+
+  test "topLvlCmd1 lvlCmd1 lvlCmd2":
+    let conf = TestConf2LvlsFlatSubCmd.load(cmdLine = @[
+      "topLvlCmd1",
+      "lvlCmd1",
+      "lvlCmd2",
+      "--lvl1-arg1=foo",
+      "--lvl2-arg1=bar"
+    ])
+    check:
+      conf.cmd == TopCmd1.topLvlCmd1
+      conf.topCmd1.cmd == LvlCmd1.lvlCmd1
+      conf.topCmd1.topCmd2.cmd == LvlCmd2.lvlCmd2
+      conf.topCmd1.lvl1Arg1 == "foo"
+      conf.topCmd1.topCmd2.lvl2Arg1 == "bar"

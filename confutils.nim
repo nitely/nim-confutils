@@ -717,7 +717,6 @@ proc fullFieldName(cf: ConfFieldDesc): string =
 
 proc fieldCaseFieldFullName(cf: ConfFieldDesc): string =
   if cf.field.caseField != nil:
-    # return to workaround Nim 1.6 bug
     if cf.parent != nil:
       fullFieldName(cf.parent[]) & "Dot" & $cf.field.caseField.getFieldName
     else:
@@ -902,9 +901,9 @@ proc cmdInfoFromType(T: NimNode): CmdInfo =
     if caseField != nil and caseBranch != nil:
       let fieldName = cf.fieldCaseFieldFullName()
       var discriminator: OptInfo
-      for (fname, fopt) in discriminatorFields:
-        if fieldName == fname:
-          discriminator = fopt
+      for (name, opt) in discriminatorFields:
+        if fieldName == name:
+          discriminator = opt
 
       if discriminator == nil:
         error "Unable to find " & $caseField.getFieldName
