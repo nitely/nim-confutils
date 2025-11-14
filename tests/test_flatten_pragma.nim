@@ -341,7 +341,7 @@ suite "test two lvls flatten subcommands":
           desc: "lvl1Arg1 desc"
           name: "lvl1-arg1" }: string
 
-    TestConf2LvlsFlatSubCmd = object
+    TestConfSubCmdFlat = object
       case cmd {.command.}: TopCmd1
       of TopCmd1.topLvlCmd1:
         topCmd1 {.flatten.}: TopSubCmdConf
@@ -349,7 +349,7 @@ suite "test two lvls flatten subcommands":
         topCmd2 {.flatten.}: TopSubCmdConf
 
   test "topLvlCmd1 lvlCmd1":
-    let conf = TestConf2LvlsFlatSubCmd.load(cmdLine = @[
+    let conf = TestConfSubCmdFlat.load(cmdLine = @[
       "topLvlCmd1",
       "lvlCmd1",
       "--lvl1-arg1=foo"
@@ -360,7 +360,7 @@ suite "test two lvls flatten subcommands":
       conf.topCmd1.lvl1Arg1 == "foo"
 
   test "topLvlCmd2 lvlCmd1":
-    let conf = TestConf2LvlsFlatSubCmd.load(cmdLine = @[
+    let conf = TestConfSubCmdFlat.load(cmdLine = @[
       "topLvlCmd2",
       "lvlCmd1",
       "--lvl1-arg1=foo"
@@ -394,15 +394,28 @@ suite "test nested flatten subcommands":
 
         topCmd2 {.flatten.}: TopSubCmdConf2
 
-    TestConf2LvlsFlatSubCmd = object
+    TestConfSubCmdFlat = object
       case cmd {.command.}: TopCmd1
       of TopCmd1.topLvlCmd1:
         topCmd1 {.flatten.}: TopSubCmdConf
       of TopCmd1.topLvlCmd2:
         discard
 
+  test "topLvlCmd1 defaults":
+    let conf = TestConfSubCmdFlat.load(cmdLine = @[
+      "topLvlCmd1",
+      "lvlCmd1",
+      "lvlCmd2"
+    ])
+    check:
+      conf.cmd == TopCmd1.topLvlCmd1
+      conf.topCmd1.cmd == Lvl1Cmd.lvlCmd1
+      conf.topCmd1.topCmd2.cmd == Lvl2Cmd.lvlCmd2
+      conf.topCmd1.lvl1Arg1 == "lvl1Arg1 default"
+      conf.topCmd1.topCmd2.lvl2Arg1 == "lvl2Arg1 default"
+
   test "topLvlCmd1 lvlCmd1 lvlCmd2":
-    let conf = TestConf2LvlsFlatSubCmd.load(cmdLine = @[
+    let conf = TestConfSubCmdFlat.load(cmdLine = @[
       "topLvlCmd1",
       "lvlCmd1",
       "lvlCmd2",
