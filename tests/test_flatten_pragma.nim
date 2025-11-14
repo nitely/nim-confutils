@@ -281,14 +281,14 @@ suite "test flatten opts in subcommand":
       conf.outerArg1 == "quz"
 
 type
-  LvlCmd1 = enum
+  Lvl1Cmd = enum
     lvlCmd1
 
 suite "test one lvl flatten subcommand":
   type
     TopSubCmdConf = object
-      case cmd {.command.}: LvlCmd1
-      of LvlCmd1.lvlCmd1:
+      case cmd {.command.}: Lvl1Cmd
+      of Lvl1Cmd.lvlCmd1:
         lvl1Arg1 {.
           defaultValue: "lvl1Arg1 default"
           desc: "lvl1Arg1 desc"
@@ -303,7 +303,7 @@ suite "test one lvl flatten subcommand":
       "--lvl1-arg1=foo"
     ])
     check:
-      conf.cmd == LvlCmd1.lvlCmd1
+      conf.cmd == Lvl1Cmd.lvlCmd1
       conf.lvl1Arg1 == "foo"
 
   test "top cmd flatten":
@@ -312,7 +312,7 @@ suite "test one lvl flatten subcommand":
       "--lvl1-arg1=foo"
     ])
     check:
-      conf.topCmd.cmd == LvlCmd1.lvlCmd1
+      conf.topCmd.cmd == Lvl1Cmd.lvlCmd1
       conf.topCmd.lvl1Arg1 == "foo"
 
   test "redefine cmd flatten opt":
@@ -334,8 +334,8 @@ type
 suite "test two lvls flatten subcommands":
   type
     TopSubCmdConf = object
-      case cmd {.command.}: LvlCmd1
-      of LvlCmd1.lvlCmd1:
+      case cmd {.command.}: Lvl1Cmd
+      of Lvl1Cmd.lvlCmd1:
         lvl1Arg1 {.
           defaultValue: "lvl1Arg1 default"
           desc: "lvl1Arg1 desc"
@@ -356,7 +356,7 @@ suite "test two lvls flatten subcommands":
     ])
     check:
       conf.cmd == TopCmd1.topLvlCmd1
-      conf.topCmd1.cmd == LvlCmd1.lvlCmd1
+      conf.topCmd1.cmd == Lvl1Cmd.lvlCmd1
       conf.topCmd1.lvl1Arg1 == "foo"
 
   test "topLvlCmd2 lvlCmd1":
@@ -367,26 +367,26 @@ suite "test two lvls flatten subcommands":
     ])
     check:
       conf.cmd == TopCmd1.topLvlCmd2
-      conf.topCmd2.cmd == LvlCmd1.lvlCmd1
+      conf.topCmd2.cmd == Lvl1Cmd.lvlCmd1
       conf.topCmd2.lvl1Arg1 == "foo"
 
 type
-  LvlCmd2 = enum
+  Lvl2Cmd = enum
     lvlCmd2
 
 suite "test nested flatten subcommands":
   type
     TopSubCmdConf2 = object
-      case cmd {.command.}: LvlCmd2
-      of LvlCmd2.lvlCmd2:
+      case cmd {.command.}: Lvl2Cmd
+      of Lvl2Cmd.lvlCmd2:
         lvl2Arg1 {.
           defaultValue: "lvl2Arg1 default"
           desc: "lvl2Arg1 desc"
           name: "lvl2-arg1" }: string
 
     TopSubCmdConf = object
-      case cmd {.command.}: LvlCmd1
-      of LvlCmd1.lvlCmd1:
+      case cmd {.command.}: Lvl1Cmd
+      of Lvl1Cmd.lvlCmd1:
         lvl1Arg1 {.
           defaultValue: "lvl1Arg1 default"
           desc: "lvl1Arg1 desc"
@@ -411,7 +411,7 @@ suite "test nested flatten subcommands":
     ])
     check:
       conf.cmd == TopCmd1.topLvlCmd1
-      conf.topCmd1.cmd == LvlCmd1.lvlCmd1
-      conf.topCmd1.topCmd2.cmd == LvlCmd2.lvlCmd2
+      conf.topCmd1.cmd == Lvl1Cmd.lvlCmd1
+      conf.topCmd1.topCmd2.cmd == Lvl2Cmd.lvlCmd2
       conf.topCmd1.lvl1Arg1 == "foo"
       conf.topCmd1.topCmd2.lvl2Arg1 == "bar"
