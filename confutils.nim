@@ -228,6 +228,11 @@ func maxNameLen(cmd: CmdInfo): int =
       for subCmd in opt.subCmds:
         result = max(result, subCmd.maxNameLen)
 
+func maxNameLen(cmds: openArray[CmdInfo]): int =
+  result = 0
+  for cmd in cmds:
+    result = max(result, cmd.maxNameLen)
+
 func hasAbbrs(cmd: CmdInfo): bool =
   for opt in cmd.opts:
     if opt.kind == Arg or opt.kind == Discriminator and opt.isCommand:
@@ -238,6 +243,12 @@ func hasAbbrs(cmd: CmdInfo): bool =
       for subCmd in opt.subCmds:
         if hasAbbrs(subCmd):
           return true
+
+func hasAbbrs(cmds: openArray[CmdInfo]): bool =
+  for cmd in cmds:
+    if hasAbbrs(cmd):
+      return true
+  false
 
 func humaneName(opt: OptInfo): string =
   if opt.name.len > 0: opt.name
@@ -418,8 +429,8 @@ proc showHelp(help: var string,
 
   let cmd = activeCmds[^1]
 
-  appInfo.maxNameLen = cmd.maxNameLen
-  appInfo.hasAbbrs = cmd.hasAbbrs
+  appInfo.maxNameLen = activeCmds.maxNameLen
+  appInfo.hasAbbrs = activeCmds.hasAbbrs
   let termWidth =
     try:
       terminalWidth()
