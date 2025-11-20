@@ -174,12 +174,14 @@ func isCliSwitch(opt: OptInfo): bool =
   opt.kind == CliSwitch or
   (opt.kind == Discriminator and opt.isCommand == false)
 
+func isOpt(opt: OptInfo): bool =
+  opt.isCliSwitch and not opt.isHidden
+
 func hasOpts(cmd: CmdInfo): bool =
   for opt in cmd.opts:
-    if opt.isCliSwitch and not opt.isHidden:
+    if opt.isOpt:
       return true
-
-  return false
+  false
 
 func hasArgs(cmd: CmdInfo): bool =
   cmd.opts.len > 0 and cmd.opts[^1].kind == Arg
@@ -323,9 +325,7 @@ proc describeOptionsList(
   appInfo: HelpAppInfo
 ) =
   for opt in cmd.opts:
-    if opt.kind == Arg or
-        opt.kind == Discriminator or
-        opt.isHidden:
+    if not opt.isOpt:
       continue
 
     if opt.separator.len > 0:
@@ -356,27 +356,18 @@ proc describeOptionsList(
 
     helpOutput "\p"
 
-    # TODO: this is not reached: https://github.com/status-im/nim-confutils/issues/39
-    when false:
-      if opt.kind == Discriminator:
-        for i, subCmd in opt.subCmds:
-          if not subCmd.hasOpts: continue
-
-          helpOutput "\pWhen ", styleBright, fgBlue, opt.humaneName, resetStyle, " = ", fgGreen, subCmd.name
-
-          if i == opt.defaultSubCmd: helpOutput " (default)"
-          help.describeOptions subCmd, cmdInvocation, appInfo, conditionalOpts
-
 proc describeOptions(
   help: var string,
-  cmd: CmdInfo,
+  cmds: openArray[CmdInfo],
   cmdInvocation: string,
   appInfo: HelpAppInfo,
-  optionsType = normalOpts,
-  activeCmds: openArray[CmdInfo] = @[]
+  optionsType = normalOpts
 ) =
-  var hasOpts = cmd.hasOpts
-  for c in activeCmds:
+  if cmds.len == 0:
+    return
+
+  var hasOpts = false
+  for c in cmds:
     if c.hasOpts:
       hasOpts = true
 
@@ -389,18 +380,29 @@ proc describeOptions(
     of defaultCmdOpts:
       discard
 
-    if activeCmds.len > 0:
-      for c in activeCmds:
-        describeOptionsList(help, c, appInfo)
-    else:
-      describeOptionsList(help, cmd, appInfo)
+    for c in cmds:
+      describeOptionsList(help, c, appInfo)
 
+    for c in cmds:
+      for opt in c.opts:
+        if opt.isOpt and opt.kind == Discriminator:
+          for i, subCmd in opt.subCmds:
+            if not subCmd.hasOpts:
+              continue
+
+            helpOutput "\pWhen ", styleBright, fgBlue, opt.humaneName, resetStyle, " = ", fgGreen, subCmd.name
+
+            if i == opt.defaultSubCmd:
+              helpOutput " (default)"
+            help.describeOptions [subCmd], cmdInvocation, appInfo, conditionalOpts
+
+  let cmd = cmds[^1]
   let subCmdDiscriminator = cmd.getSubCmdDiscriminator
   if subCmdDiscriminator != nil:
     let defaultCmdIdx = subCmdDiscriminator.defaultSubCmd
     if defaultCmdIdx != -1:
       let defaultCmd = subCmdDiscriminator.subCmds[defaultCmdIdx]
-      help.describeOptions defaultCmd, cmdInvocation, appInfo, defaultCmdOpts
+      help.describeOptions [defaultCmd], cmdInvocation, appInfo, defaultCmdOpts
 
     helpOutput fgSection, "\pAvailable sub-commands:\p"
 
@@ -408,7 +410,7 @@ proc describeOptions(
       if i != subCmdDiscriminator.defaultSubCmd:
         let subCmdInvocation = cmdInvocation & " " & subCmd.name
         help.describeInvocation subCmd, subCmdInvocation, appInfo
-        help.describeOptions subCmd, subCmdInvocation, appInfo
+        help.describeOptions [subCmd], subCmdInvocation, appInfo
 
 proc showHelp(help: var string,
               appInfo: HelpAppInfo,
@@ -437,7 +439,7 @@ proc showHelp(help: var string,
   # Write out the app or script name
   helpOutput fgSection, "Usage: \p"
   help.describeInvocation cmd, cmdInvocation, appInfo
-  help.describeOptions cmd, cmdInvocation, appInfo, activeCmds = activeCmds
+  help.describeOptions activeCmds, cmdInvocation, appInfo
   helpOutput "\p"
 
   flushOutputAndQuit QuitSuccess
