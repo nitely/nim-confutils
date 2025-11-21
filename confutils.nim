@@ -174,12 +174,14 @@ func isCliSwitch(opt: OptInfo): bool =
   opt.kind == CliSwitch or
   (opt.kind == Discriminator and opt.isCommand == false)
 
+func isOpt(opt: OptInfo): bool =
+  opt.isCliSwitch and not opt.isHidden
+
 func hasOpts(cmd: CmdInfo): bool =
   for opt in cmd.opts:
-    if opt.isCliSwitch and not opt.isHidden:
+    if opt.isOpt:
       return true
-
-  return false
+  false
 
 func hasArgs(cmd: CmdInfo): bool =
   cmd.opts.len > 0 and cmd.opts[^1].kind == Arg
@@ -218,35 +220,40 @@ iterator subCmds(cmd: CmdInfo): CmdInfo =
 template isSubCommand(cmd: CmdInfo): bool =
   cmd.name.len > 0
 
-func maxNameLen(cmd: CmdInfo): int =
+func maxNameLen(cmd: CmdInfo, commands = false): int =
   result = 0
   for opt in cmd.opts:
-    if opt.kind == Arg or opt.kind == Discriminator and opt.isCommand:
-      continue
-    result = max(result, opt.name.len)
-    if opt.kind == Discriminator:
+    if opt.isOpt:
+      result = max(result, opt.name.len)
+      if opt.kind == Discriminator:
+        for subCmd in opt.subCmds:
+          result = max(result, maxNameLen(subCmd, commands))
+    elif commands and opt.kind == Discriminator and opt.isCommand:
       for subCmd in opt.subCmds:
-        result = max(result, subCmd.maxNameLen)
+        result = max(result, maxNameLen(subCmd, commands))
 
 func maxNameLen(cmds: openArray[CmdInfo]): int =
   result = 0
-  for cmd in cmds:
-    result = max(result, cmd.maxNameLen)
+  for i, cmd in cmds:
+    result = max(result, maxNameLen(cmd, commands = i == cmds.high))
 
-func hasAbbrs(cmd: CmdInfo): bool =
+func hasAbbrs(cmd: CmdInfo, commands = false): bool =
   for opt in cmd.opts:
-    if opt.kind == Arg or opt.kind == Discriminator and opt.isCommand:
-      continue
-    if opt.abbr.len > 0:
-      return true
-    if opt.kind == Discriminator:
+    if opt.isOpt:
+      if opt.abbr.len > 0:
+        return true
+      if opt.kind == Discriminator:
+        for subCmd in opt.subCmds:
+          if hasAbbrs(subCmd, commands):
+            return true
+    elif commands and opt.kind == Discriminator and opt.isCommand:
       for subCmd in opt.subCmds:
-        if hasAbbrs(subCmd):
+        if hasAbbrs(subCmd, commands):
           return true
 
 func hasAbbrs(cmds: openArray[CmdInfo]): bool =
-  for cmd in cmds:
-    if hasAbbrs(cmd):
+  for i, cmd in cmds:
+    if hasAbbrs(cmd, commands = i == cmds.high):
       return true
   false
 
