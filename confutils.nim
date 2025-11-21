@@ -788,6 +788,8 @@ func findPath(parent, node: CmdInfo): seq[CmdInfo] =
 func toText(n: NimNode): string =
   if n == nil: ""
   elif n.kind in {nnkStrLit..nnkTripleStrLit}: n.strVal
+  elif n.kind == nnkSym and n.getImpl.kind == nnkConstDef:
+    toText(n.getImpl[2])
   else: repr(n)
 
 proc cmdInfoFromType(T: NimNode): CmdInfo =
