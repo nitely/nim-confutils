@@ -9,6 +9,17 @@
 
 import unittest2, ../confutils
 
+type CustomString = distinct string
+
+proc `==`(a, b: CustomString): bool =
+  a.string == b.string
+
+proc parseCmdArg(T: type CustomString, s: string): T {.raises: [ValueError].} =
+  T(s & "_cs_overridden")
+
+func completeCmdArg(T: type CustomString, val: string): seq[string] =
+  @[]
+
 type
   Lvl1Cmd = enum
     lvl1Cmd1
@@ -20,6 +31,9 @@ type
     opt1 {.
       desc: "opt1 desc"
       name: "opt1" }: Opt[string]
+    opt2 {.
+      desc: "opt2 desc"
+      name: "opt2" }: Opt[CustomString]
 
     case cmd {.command.}: Lvl1Cmd
     of Lvl1Cmd.lvl1Cmd1:
@@ -43,12 +57,14 @@ suite "test results Opt":
       conf.cmd == Lvl1Cmd.lvl1Cmd1
       conf.cmd2 == Lvl2Cmd.lvl2Cmd1
       not conf.opt1.isOk
+      not conf.opt2.isOk
       not conf.lvl1Opt1.isOk
       not conf.lvl2Opt1.isOk
 
   test "all opts":
     let conf = TestConf.load(cmdLine = @[
       "--opt1=foo",
+      "--opt2=bar",
       "lvl1Cmd1",
       "--lvl1-opt1=123",
       "lvl2Cmd1",
@@ -58,5 +74,6 @@ suite "test results Opt":
       conf.cmd == Lvl1Cmd.lvl1Cmd1
       conf.cmd2 == Lvl2Cmd.lvl2Cmd1
       conf.opt1.get == "foo"
+      conf.opt2.get == "bar_cs_overridden".CustomString
       conf.lvl1Opt1.get == 123
       conf.lvl2Opt1.get == 456
