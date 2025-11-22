@@ -86,7 +86,7 @@ type
 
       stateSnapshot* {.
         desc: "Json file specifying a recent state snapshot"
-        abbr: "s" }: Option[BeaconState]
+        abbr: "s" }: Opt[BeaconState]
 
     of createChain:
       chainStartupData* {.
@@ -145,7 +145,7 @@ The following options are supported:
   --tcpPort=int                              : TCP listening port
   --udpPort=int                              : UDP listening port
   --validator=seq[PrivateValidatorData]      : A path to a pair of public and private keys for a validator. Nimbus will automatically add the extensions .privkey and .pubkey.
-  --stateSnapshot=Option[BeaconState]        : Json file specifying a recent state snapshot
+  --stateSnapshot=Opt[BeaconState]           : Json file specifying a recent state snapshot
 
 Available sub-commands:
 
@@ -261,7 +261,7 @@ template required* {.pragma.}
 ```
 
 By default, all options without default values are considered required.
-An exception to this rule are all `seq[T]` or `Option[T]` options for
+An exception to this rule are all `seq[T]` or `Opt[T]` or `Option[T]` options for
 which the "empty" value can be considered a reasonable default. You can
 also extend this behavior to other user-defined types by providing the
 following overloads:
