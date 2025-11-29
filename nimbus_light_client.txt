@@ -12,36 +12,32 @@ The following options are available:
      --log-file                Specifies a path for the written Json log file (deprecated).
  -d, --data-dir                The directory where nimbus will store all blockchain data.
      --network                 The Eth2 network to join [=mainnet].
- -b, --bootstrap-node          Specifies one or more bootstrap nodes to use when connecting to the
-                               network.
-     --bootstrap-file          Specifies a line-delimited file of bootstrap Ethereum network
-                               addresses.
+ -b, --bootstrap-node          Specifies one or more bootstrap nodes to use when connecting to the network.
+     --bootstrap-file          Specifies a line-delimited file of bootstrap Ethereum network addresses.
      --listen-address          Listening address for the Ethereum LibP2P and Discovery v5 traffic.
      --tcp-port                Listening TCP port for Ethereum LibP2P traffic [=9000].
      --udp-port                Listening UDP port for node discovery [=9000].
      --max-peers               The target number of peers to connect to [=160].
-     --hard-max-peers          The maximum number of peers to connect to. Defaults to maxPeers *
-                               1.5.
-     --nat                     Specify method to use for determining public address. Must be one
-                               of: any, none, upnp, pmp, extip:<IP> [=any].
-     --enr-auto-update         Discovery can automatically update its ENR with the IP address and
-                               UDP port as seen by other nodes it communicates with. This option
-                               allows to enable/disable this functionality [=false].
+     --hard-max-peers          The maximum number of peers to connect to. Defaults to maxPeers * 1.5.
+     --nat                     Specify method to use for determining public address. Must be one of: any, none,
+                               upnp, pmp, extip:<IP> [=any].
+     --enr-auto-update         Discovery can automatically update its ENR with the IP address and UDP port as
+                               seen by other nodes it communicates with. This option allows to enable/disable
+                               this functionality [=false].
      --agent-string            Node agent string which is used as identifier in network [=nimbus].
      --discv5                  Enable Discovery v5 [=true].
-     --direct-peer             The list of priviledged, secure and known peers to connect and
-                               maintain the connection to, this requires a not random netkey-file.
-                               In the complete multiaddress format like:
-                               /ip4/<address>/tcp/<port>/p2p/<peerId-public-key>. Peering
-                               agreements are established out of band and must be reciprocal..
+     --direct-peer             The list of priviledged, secure and known peers to connect and maintain the
+                               connection to, this requires a not random netkey-file. In the complete
+                               multiaddress format like: /ip4/<address>/tcp/<port>/p2p/<peerId-public-key>.
+                               Peering agreements are established out of band and must be reciprocal..
      --trusted-block-root      Recent trusted finalized block root to initialize light client from.
-     --sync-light-client-finality  Whether the light client should including finality information when
-                               syncing execution layers [=false].
+     --sync-light-client-finality  Whether the light client should including finality information when syncing
+                               execution layers [=false].
      --web3-url                One or more execution layer Engine API URLs.
      --el                      One or more execution layer Engine API URLs.
-     --no-el                   Don't use an EL. The node will remain optimistically synced and
-                               won't be able to perform validator duties [=false].
+     --no-el                   Don't use an EL. The node will remain optimistically synced and won't be able to
+                               perform validator duties [=false].
      --jwt-secret              A file containing the hex-encoded 256 bit secret key to be used for
                                verifying/generating JWT tokens.
 
-esteban@edev:~/AtomProjects/nitely-nimbus-eth2$
+esteban@edev:~/AtomProjects/nitely-nimbus-eth2$ 

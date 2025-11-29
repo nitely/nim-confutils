@@ -7,35 +7,35 @@ nimbus_beacon_node deposits command
 
 The following options are available:
 
- --config-file  Loads the configuration from a TOML file.
- --log-level  Sets the log level for process and topics (e.g. "DEBUG; TRACE:discv5,libp2p;
-             REQUIRED:none; DISABLED:none") [=INFO].
- --log-file  Specifies a path for the written JSON log file (deprecated).
- --network  The Eth2 network to join [=mainnet].
- -d, --data-dir  The directory where nimbus will store all blockchain data.
- --validators-dir  A directory containing validator keystores.
- --verifying-web3-signer-url  Remote Web3Signer URL that will be used as a source of validators.
- --proven-block-property  The field path of a block property that will be sent for verification to the
-             verifying Web3Signer (for example ".execution_payload.fee_recipient").
- --web3-signer-url  Remote Web3Signer URL that will be used as a source of validators.
- --web3-signer-update-interval  Number of seconds between validator list updates [=3600].
- --secrets-dir  A directory containing validator keystore passwords.
- --wallets-dir  A directory containing wallet files.
- --web3-url  One or more execution layer Engine API URLs.
- --el    One or more execution layer Engine API URLs.
- --no-el  Don't use an EL. The node will remain optimistically synced and won't be able to
-             perform validator duties [=false].
- --non-interactive  Do not display interactive prompts. Quit on missing configuration.
- --netkey-file  Source of network (secp256k1) private key file (random|<path>) [=random].
- --insecure-netkey-password  Use pre-generated INSECURE password for network private key file [=false].
- --agent-string  Node agent string which is used as identifier in network [=nimbus].
- --subscribe-all-subnets  Subscribe to all subnet topics when gossiping [=false].
- --peerdas-supernode  Subscribe to all column subnets, thereby becoming a PeerDAS supernode [=false].
- --light-supernode  Subscribe to the first half of column subnets [=false].
- --num-threads  Number of worker threads ("0" = use as many threads as there are CPU cores
-             available) [=0].
- --jwt-secret  A file containing the hex-encoded 256 bit secret key to be used for
-             verifying/generating JWT tokens.
+     --config-file             Loads the configuration from a TOML file.
+     --log-level               Sets the log level for process and topics (e.g. "DEBUG; TRACE:discv5,libp2p;
+                               REQUIRED:none; DISABLED:none") [=INFO].
+     --log-file                Specifies a path for the written JSON log file (deprecated).
+     --network                 The Eth2 network to join [=mainnet].
+ -d, --data-dir                The directory where nimbus will store all blockchain data.
+     --validators-dir          A directory containing validator keystores.
+     --verifying-web3-signer-url  Remote Web3Signer URL that will be used as a source of validators.
+     --proven-block-property   The field path of a block property that will be sent for verification to the
+                               verifying Web3Signer (for example ".execution_payload.fee_recipient").
+     --web3-signer-url         Remote Web3Signer URL that will be used as a source of validators.
+     --web3-signer-update-interval  Number of seconds between validator list updates [=3600].
+     --secrets-dir             A directory containing validator keystore passwords.
+     --wallets-dir             A directory containing wallet files.
+     --web3-url                One or more execution layer Engine API URLs.
+     --el                      One or more execution layer Engine API URLs.
+     --no-el                   Don't use an EL. The node will remain optimistically synced and won't be able to
+                               perform validator duties [=false].
+     --non-interactive         Do not display interactive prompts. Quit on missing configuration.
+     --netkey-file             Source of network (secp256k1) private key file (random|<path>) [=random].
+     --insecure-netkey-password  Use pre-generated INSECURE password for network private key file [=false].
+     --agent-string            Node agent string which is used as identifier in network [=nimbus].
+     --subscribe-all-subnets   Subscribe to all subnet topics when gossiping [=false].
+     --peerdas-supernode       Subscribe to all column subnets, thereby becoming a PeerDAS supernode [=false].
+     --light-supernode         Subscribe to the first half of column subnets [=false].
+     --num-threads             Number of worker threads ("0" = use as many threads as there are CPU cores
+                               available) [=0].
+     --jwt-secret              A file containing the hex-encoded 256 bit secret key to be used for
+                               verifying/generating JWT tokens.
 
 Available sub-commands:
 
@@ -45,22 +45,24 @@ Creates validator keystores and deposits for testnet usage.
 
 The following options are available:
 
- --count  Number of deposits to generate [=1].
- --wallet  An existing wallet ID. If not specified, a new wallet will be created.
- --out-validators-dir  Output folder for validator keystores [=validators].
- --out-secrets-dir  Output folder for randomly generated keystore passphrases [=secrets].
- --out-deposits-file  The name of generated deposits file.
- --new-wallet-name  An easy-to-remember name for the wallet of your choice.
- --new-wallet-file  Output wallet file.
+     --count                   Number of deposits to generate [=1].
+     --wallet                  An existing wallet ID. If not specified, a new wallet will be created.
+     --out-validators-dir      Output folder for validator keystores [=validators].
+     --out-secrets-dir         Output folder for randomly generated keystore passphrases [=secrets].
+     --out-deposits-file       The name of generated deposits file.
+     --new-wallet-name         An easy-to-remember name for the wallet of your choice.
+     --new-wallet-file         Output wallet file.
 
-nimbus_beacon_node deposits import [OPTIONS]...
+nimbus_beacon_node deposits import [OPTIONS]... <importedDepositsDir>
 
 Imports password-protected keystores interactively.
 
+ <importedDepositsDir>     A directory with keystores to import.
+
 The following options are available:
 
- --method  Specifies which import method will be used (normal, single-salt)
-             [=ImportMethod.Normal].
+     --method                  Specifies which import method will be used (normal, single-salt)
+                               [=ImportMethod.Normal].
 
 nimbus_beacon_node deposits exit [OPTIONS]...
 
@@ -68,12 +70,12 @@ Submits a validator voluntary exit.
 
 The following options are available:
 
- --validator  One or more validator index, public key or a keystore path of the exited
-             validator(s).
- --all   Exit all validators in the specified data directory or validators directory
-             [=false].
- --epoch  The desired exit epoch [=immediately].
- --rest-url  URL of the beacon node REST service [=http://127.0.0.1:5052].
- --print  Print signed exit message instead of publishing it [=false].
+     --validator               One or more validator index, public key or a keystore path of the exited
+                               validator(s).
+     --all                     Exit all validators in the specified data directory or validators directory
+                               [=false].
+     --epoch                   The desired exit epoch [=immediately].
+     --rest-url                URL of the beacon node REST service [=http://127.0.0.1:5052].
+     --print                   Print signed exit message instead of publishing it [=false].
 
 esteban@edev:~/AtomProjects/nitely-nimbus-eth2$
