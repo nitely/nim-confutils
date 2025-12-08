@@ -311,6 +311,15 @@ Network Options:     # this is a separator
   -c, --opt3 desc
 ```
 
+-----------------
+
+```nim
+template debug* {.pragma.}
+```
+
+Use this pragma to avoid listing the field in `--help` output.
+Use `--help:debug` to list the debug fields.
+
 ## Configuration field types
 
 The `confutils/defs` module provides a number of types frequently used

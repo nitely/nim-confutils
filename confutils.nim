@@ -36,6 +36,9 @@ when not defined(nimscript):
     confutils/shell_completion
 
 type
+  HelpFlag = enum
+    hlpDebug
+
   HelpAppInfo = ref object
     appInvocation: string
     copyrightBanner: string
@@ -43,11 +46,11 @@ type
     maxNameLen: int
     terminalWidth: int
     namesWidth: int
+    flags: set[HelpFlag]
 
   CmdInfo = ref object
     name: string
     desc: string
-    isHidden: bool
     opts: seq[OptInfo]
 
   OptKind = enum
@@ -55,12 +58,16 @@ type
     CliSwitch
     Arg
 
+  OptFlag = enum
+    optHidden
+    optDebug
+
   OptInfo = ref object
     name, abbr, desc, typename: string
     separator: string
     longDesc: string
     idx: int
-    isHidden: bool
+    flags: set[OptFlag]
     hasDefault: bool
     defaultInHelpText: string
     case kind: OptKind
@@ -77,6 +84,14 @@ const
   confutils_narrow_terminal_width {.intdefine.} = 36
 
 {.push gcsafe, raises: [].}
+
+func toHelpFlags(s: string): set[HelpFlag] =
+  # if adding more flags parse `debug:experimental:etc`
+  case s
+  of "debug":
+    result.incl hlpDebug
+  else:
+    discard
 
 func getFieldName(caseField: NimNode): NimNode =
   result = caseField
@@ -175,7 +190,7 @@ func isCliSwitch(opt: OptInfo): bool =
   (opt.kind == Discriminator and opt.isCommand == false)
 
 func isOpt(opt: OptInfo): bool =
-  opt.isCliSwitch and not opt.isHidden
+  opt.isCliSwitch and optHidden notin opt.flags
 
 func hasOpts(cmd: CmdInfo): bool =
   for opt in cmd.opts:
@@ -337,6 +352,8 @@ proc describeOptionsList(
 ) =
   for opt in cmd.opts:
     if not opt.isOpt:
+      continue
+    if optDebug in opt.flags and hlpDebug notin appInfo.flags:
       continue
 
     if opt.separator.len > 0:
@@ -803,6 +820,13 @@ func toText(n: NimNode): string =
   elif n.kind in {nnkStrLit..nnkTripleStrLit}: n.strVal
   else: repr(n)
 
+func readPragmaFlags(field: FieldDescription): set[OptFlag] =
+  result = {}
+  if field.readPragma("hidden") != nil:
+    result.incl optHidden
+  if field.readPragma("debug") != nil:
+    result.incl optDebug
+
 proc cmdInfoFromType(T: NimNode): CmdInfo =
   result = CmdInfo()
 
@@ -821,19 +845,19 @@ proc cmdInfoFromType(T: NimNode): CmdInfo =
       defaultInHelpText = toText(defaultInHelp)
       separator = field.readPragma"separator"
       longDesc = field.readPragma"longDesc"
-
-      isHidden = field.readPragma("hidden") != nil
       abbr = field.readPragma"abbr"
       name = field.readPragma"name"
       desc = field.readPragma"desc"
-      optKind = if field.isDiscriminator: Discriminator
-                elif field.readPragma("argument") != nil: Arg
-                else: CliSwitch
+      optKind =
+        if field.isDiscriminator: Discriminator
+        elif field.readPragma("argument") != nil: Arg
+        else: CliSwitch
+      optFlags = field.readPragmaFlags()
 
     var opt = OptInfo(kind: optKind,
                       idx: fieldIdx,
                       name: $field.name,
-                      isHidden: isHidden,
+                      flags: optFlags,
                       hasDefault: defaultValue != nil,
                       defaultInHelpText: defaultInHelpText,
                       typename: field.typ.repr)
@@ -1131,16 +1155,19 @@ proc loadImpl[C, SecondarySources](
 
       return
 
-  proc lazyHelpAppInfo: HelpAppInfo =
+  proc lazyHelpAppInfo(flags: set[HelpFlag]): HelpAppInfo =
     HelpAppInfo(
       copyrightBanner: copyrightBanner,
       appInvocation: appInvocation(),
-      terminalWidth: termWidth)
+      terminalWidth: termWidth,
+      flags: flags
+    )
 
-  template processHelpAndVersionOptions(optKey: string) =
+  template processHelpAndVersionOptions(optKey, optVal: string) =
     let key = optKey
+    let val = optVal
     if cmpIgnoreStyle(key, "help") == 0:
-      help.showHelp lazyHelpAppInfo(), activeCmds
+      help.showHelp(lazyHelpAppInfo(optVal.toHelpFlags), activeCmds)
     elif version.len > 0 and cmpIgnoreStyle(key, "version") == 0:
       help.helpOutput version, "\p"
       flushOutputAndQuit QuitSuccess
@@ -1150,7 +1177,7 @@ proc loadImpl[C, SecondarySources](
       let key = string(key)
     case kind
     of cmdLongOption, cmdShortOption:
-      processHelpAndVersionOptions key
+      processHelpAndVersionOptions(key, val)
 
       var opt = findOpt(activeCmds, key)
       if opt == nil:
@@ -1173,7 +1200,7 @@ proc loadImpl[C, SecondarySources](
 
     of cmdArgument:
       if lastCmd.hasSubCommands:
-        processHelpAndVersionOptions key
+        processHelpAndVersionOptions(key, val)
 
       block processArg:
         let subCmdDiscriminator = lastCmd.getSubCmdDiscriminator
