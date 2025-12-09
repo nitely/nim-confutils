@@ -69,3 +69,32 @@ suite "test duplicates":
       conf.dataDir.string == "/data"
       conf.importDir.string == "/in"
       conf.outputDir.string == "/out"
+
+  test "sub-command branchA":
+    let conf = TestConf.load(cmdLine = @[
+      "--dataDir=/data",
+      "subCommand",
+      "--import=/in",
+      "--output=/out"
+    ])
+    check:
+      conf.cmd == Command.subCommand
+      conf.dataDir.string == "/data"
+      conf.importKey.string == "/in"
+      conf.subcmd == BranchCmd.branchA
+      conf.outputFolder.string == "/out"
+
+  test "sub-command branchB":
+    let conf = TestConf.load(cmdLine = @[
+      "--dataDir=/data",
+      "subCommand",
+      "--import=/in",
+      "branchB",
+      "--import-folder=/out"
+    ])
+    check:
+      conf.cmd == Command.subCommand
+      conf.dataDir.string == "/data"
+      conf.importKey.string == "/in"
+      conf.subcmd == BranchCmd.branchB
+      conf.importFolder.string == "/out"
