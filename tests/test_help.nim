@@ -86,3 +86,6 @@ suite "test --help":
 
   test "test test_case_opt cmdBlockProcessing":
     cmdTest("test_case_opt", "cmdBlockProcessing")
+
+  test "test test_dispatch":
+    cmdTest("test_dispatch", "")
