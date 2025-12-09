@@ -10,7 +10,7 @@
 import unittest2, ../confutils
 
 suite "test dispatch":
-  test "simple cli":
+  test "required params":
     var a: int
     var b: string
     proc simple(foo: int, bar: string) =
@@ -24,7 +24,7 @@ suite "test dispatch":
       a == 123
       b == "baz"
 
-  test "simple cli default param":
+  test "default param":
     var a: int
     var b: string
     proc simple(foo: int, bar: string = "abc") =
@@ -37,7 +37,21 @@ suite "test dispatch":
       a == 123
       b == "abc"
 
-  test "simple cli default param implicit type":
+  test "set default param":
+    var a: int
+    var b: string
+    proc simple(foo: int, bar: string = "abc") =
+      a = foo
+      b = bar
+    dispatch(simple, cmdLine = @[
+      "--foo=123",
+      "--bar=def"
+    ])
+    check:
+      a == 123
+      b == "def"
+
+  test "default param implicit type":
     var a: int
     var b: string
     proc simple(foo: int, bar = "abc") =
@@ -50,7 +64,21 @@ suite "test dispatch":
       a == 123
       b == "abc"
 
-  test "simple cli default pragma":
+  test "set default param implicit type":
+    var a: int
+    var b: string
+    proc simple(foo: int, bar = "abc") =
+      a = foo
+      b = bar
+    dispatch(simple, cmdLine = @[
+      "--foo=123",
+      "--bar=def"
+    ])
+    check:
+      a == 123
+      b == "def"
+
+  test "default pragma":
     var a: int
     var b: string
     proc simple(foo: int, bar {.defaultValue: "abc".}: string) =
@@ -62,6 +90,20 @@ suite "test dispatch":
     check:
       a == 123
       b == "abc"
+
+  test "set default pragma":
+    var a: int
+    var b: string
+    proc simple(foo: int, bar {.defaultValue: "abc".}: string) =
+      a = foo
+      b = bar
+    dispatch(simple, cmdLine = @[
+      "--foo=123",
+      "--bar=def"
+    ])
+    check:
+      a == 123
+      b == "def"
 
   test "cli example":
     var
