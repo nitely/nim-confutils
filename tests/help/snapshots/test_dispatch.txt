@@ -7,4 +7,4 @@ test_dispatch [OPTIONS]...
 The following options are available:
 
  --foo    
- --bar      bar desc [=123].
+ --bar

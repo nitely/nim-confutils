@@ -9,7 +9,7 @@
 
 import ../../confutils
 
-proc main(foo: string, bar {.desc: "bar desc".}: int = 123) =
+proc main(foo: string, bar: int = 123) =
   echo foo
   echo bar
 

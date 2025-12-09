@@ -78,55 +78,57 @@ suite "test dispatch":
       a == 123
       b == "def"
 
-  test "default pragma":
-    var a: int
-    var b: string
-    proc simple(foo: int, bar {.defaultValue: "abc".}: string) =
-      a = foo
-      b = bar
-    dispatch(simple, cmdLine = @[
-      "--foo=123"
-    ])
-    check:
-      a == 123
-      b == "abc"
+  # proc param pragmas are ignored in older versions
+  when (NimMajor, NimMinor) >= (2, 2):
+    test "default pragma":
+      var a: int
+      var b: string
+      proc simple(foo: int, bar {.defaultValue: "abc".}: string) =
+        a = foo
+        b = bar
+      dispatch(simple, cmdLine = @[
+        "--foo=123"
+      ])
+      check:
+        a == 123
+        b == "abc"
 
-  test "set default pragma":
-    var a: int
-    var b: string
-    proc simple(foo: int, bar {.defaultValue: "abc".}: string) =
-      a = foo
-      b = bar
-    dispatch(simple, cmdLine = @[
-      "--foo=123",
-      "--bar=def"
-    ])
-    check:
-      a == 123
-      b == "def"
+    test "set default pragma":
+      var a: int
+      var b: string
+      proc simple(foo: int, bar {.defaultValue: "abc".}: string) =
+        a = foo
+        b = bar
+      dispatch(simple, cmdLine = @[
+        "--foo=123",
+        "--bar=def"
+      ])
+      check:
+        a == 123
+        b == "def"
 
-  test "cli example":
-    var
-      a: int
-      b: string
-      c: bool
-      d: seq[string]
-    proc simple(
-        foo: int, bar: string, withBaz: bool, args {.argument.}: seq[string]
-    ) =
-      a = foo
-      b = bar
-      c = withBaz
-      d = args
-    dispatch(simple, cmdLine = @[
-      "--foo=123",
-      "--bar=abc",
-      "--withBaz=true",
-      "def",
-      "hij"
-    ])
-    check:
-      a == 123
-      b == "abc"
-      c == true
-      d == @["def", "hij"]
+    test "cli example":
+      var
+        a: int
+        b: string
+        c: bool
+        d: seq[string]
+      proc simple(
+          foo: int, bar: string, withBaz: bool, args {.argument.}: seq[string]
+      ) =
+        a = foo
+        b = bar
+        c = withBaz
+        d = args
+      dispatch(simple, cmdLine = @[
+        "--foo=123",
+        "--bar=abc",
+        "--withBaz=true",
+        "def",
+        "hij"
+      ])
+      check:
+        a == 123
+        b == "abc"
+        c == true
+        d == @["def", "hij"]
