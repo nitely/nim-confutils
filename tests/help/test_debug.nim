@@ -22,7 +22,7 @@ type
       hidden
       desc: "hidden1 regular description"
       defaultValue: "hidden1 default"
-      name: "hidden1" }: string
+      name: "hidden1-with-a-long-name" }: string
     debug1 {.
       debug
       desc: "debug1 regular description"
@@ -39,7 +39,7 @@ type
         hidden
         desc: "hidden2 regular description"
         defaultValue: "hidden2 default"
-        name: "hidden2" }: string
+        name: "hidden2-with-a-long-name" }: string
       debug2 {.
         debug
         defaultValue: "debug2 default"

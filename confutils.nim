@@ -230,40 +230,42 @@ iterator subCmds(cmd: CmdInfo): CmdInfo =
 template isSubCommand(cmd: CmdInfo): bool =
   cmd.name.len > 0
 
-func maxNameLen(cmd: CmdInfo, commands = false): int =
+func maxNameLen(cmd: CmdInfo, inclCmds: bool, exclFlags: set[OptFlag]): int =
   result = 0
   for opt in cmd.opts:
-    if opt.isOpt or opt.kind == Arg:
+    if opt.isOpt or opt.kind == Arg and exclFlags * opt.flags == {}:
       result = max(result, opt.name.len)
       if opt.kind == Discriminator:
         for subCmd in opt.subCmds:
-          result = max(result, maxNameLen(subCmd, commands))
-    elif commands and opt.kind == Discriminator and opt.isCommand:
+          result = max(result, maxNameLen(subCmd, inclCmds, exclFlags))
+    elif inclCmds and opt.kind == Discriminator and opt.isCommand:
       for subCmd in opt.subCmds:
-        result = max(result, maxNameLen(subCmd, commands))
+        result = max(result, maxNameLen(subCmd, inclCmds, exclFlags))
 
-func maxNameLen(cmds: openArray[CmdInfo]): int =
+func maxNameLen(cmds: openArray[CmdInfo], exclFlags: set[OptFlag]): int =
   result = 0
   for i, cmd in cmds:
-    result = max(result, maxNameLen(cmd, commands = i == cmds.high))
+    let inclCmds = i == cmds.high
+    result = max(result, maxNameLen(cmd, inclCmds, exclFlags))
 
-func hasAbbrs(cmd: CmdInfo, commands = false): bool =
+func hasAbbrs(cmd: CmdInfo, inclCmds: bool, exclFlags: set[OptFlag]): bool =
   for opt in cmd.opts:
-    if opt.isOpt:
+    if opt.isOpt and exclFlags * opt.flags == {}:
       if opt.abbr.len > 0:
         return true
       if opt.kind == Discriminator:
         for subCmd in opt.subCmds:
-          if hasAbbrs(subCmd, commands):
+          if hasAbbrs(subCmd, inclCmds, exclFlags):
             return true
-    elif commands and opt.kind == Discriminator and opt.isCommand:
+    elif inclCmds and opt.kind == Discriminator and opt.isCommand:
       for subCmd in opt.subCmds:
-        if hasAbbrs(subCmd, commands):
+        if hasAbbrs(subCmd, inclCmds, exclFlags):
           return true
 
-func hasAbbrs(cmds: openArray[CmdInfo]): bool =
+func hasAbbrs(cmds: openArray[CmdInfo], exclFlags: set[OptFlag]): bool =
   for i, cmd in cmds:
-    if hasAbbrs(cmd, commands = i == cmds.high):
+    let inclCmds = i == cmds.high
+    if hasAbbrs(cmd, inclCmds, exclFlags):
       return true
   false
 
@@ -448,8 +450,8 @@ proc showHelp(help: var string,
 
   let cmd = activeCmds[^1]
 
-  appInfo.maxNameLen = activeCmds.maxNameLen
-  appInfo.hasAbbrs = activeCmds.hasAbbrs
+  appInfo.maxNameLen = maxNameLen(activeCmds, {optDebug, optHidden})
+  appInfo.hasAbbrs = hasAbbrs(activeCmds, {optDebug, optHidden})
   let termWidth =
     try:
       terminalWidth()
@@ -848,10 +850,9 @@ proc cmdInfoFromType(T: NimNode): CmdInfo =
       abbr = field.readPragma"abbr"
       name = field.readPragma"name"
       desc = field.readPragma"desc"
-      optKind =
-        if field.isDiscriminator: Discriminator
-        elif field.readPragma("argument") != nil: Arg
-        else: CliSwitch
+      optKind = if field.isDiscriminator: Discriminator
+                elif field.readPragma("argument") != nil: Arg
+                else: CliSwitch
       optFlags = field.readPragmaFlags()
 
     var opt = OptInfo(kind: optKind,
