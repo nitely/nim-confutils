@@ -454,11 +454,10 @@ proc showHelp(help: var string,
 
   let cmd = activeCmds[^1]
 
-  let excl =
-    if hlpDebug in appInfo.flags:
-      {optHidden}
-    else:
-      {optHidden, optDebug}
+  var excl = {optHidden}
+  if hlpDebug notin appInfo.flags:
+    excl.incl optDebug
+
   appInfo.maxNameLen = maxNameLen(activeCmds, excl)
   appInfo.hasAbbrs = hasAbbrs(activeCmds, excl)
   let termWidth =
