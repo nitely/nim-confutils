@@ -189,12 +189,12 @@ func isCliSwitch(opt: OptInfo): bool =
   opt.kind == CliSwitch or
   (opt.kind == Discriminator and opt.isCommand == false)
 
-func isOpt(opt: OptInfo): bool =
-  opt.isCliSwitch and optHidden notin opt.flags
+func isOpt(opt: OptInfo, excl: set[OptFlag]): bool =
+  opt.isCliSwitch and excl * opt.flags == {}
 
-func hasOpts(cmd: CmdInfo): bool =
+func hasOpts(cmd: CmdInfo, excl: set[OptFlag]): bool =
   for opt in cmd.opts:
-    if opt.isOpt:
+    if opt.isOpt(excl):
       return true
   false
 
@@ -230,42 +230,42 @@ iterator subCmds(cmd: CmdInfo): CmdInfo =
 template isSubCommand(cmd: CmdInfo): bool =
   cmd.name.len > 0
 
-func maxNameLen(cmd: CmdInfo, inclCmds: bool, exclFlags: set[OptFlag]): int =
+func maxNameLen(cmd: CmdInfo, inclCmds: bool, excl: set[OptFlag]): int =
   result = 0
   for opt in cmd.opts:
-    if opt.isOpt or opt.kind == Arg and exclFlags * opt.flags == {}:
+    if opt.isOpt(excl) or opt.kind == Arg:
       result = max(result, opt.name.len)
       if opt.kind == Discriminator:
         for subCmd in opt.subCmds:
-          result = max(result, maxNameLen(subCmd, inclCmds, exclFlags))
+          result = max(result, maxNameLen(subCmd, inclCmds, excl))
     elif inclCmds and opt.kind == Discriminator and opt.isCommand:
       for subCmd in opt.subCmds:
-        result = max(result, maxNameLen(subCmd, inclCmds, exclFlags))
+        result = max(result, maxNameLen(subCmd, inclCmds, excl))
 
-func maxNameLen(cmds: openArray[CmdInfo], exclFlags: set[OptFlag]): int =
+func maxNameLen(cmds: openArray[CmdInfo], excl: set[OptFlag]): int =
   result = 0
   for i, cmd in cmds:
     let inclCmds = i == cmds.high
-    result = max(result, maxNameLen(cmd, inclCmds, exclFlags))
+    result = max(result, maxNameLen(cmd, inclCmds, excl))
 
-func hasAbbrs(cmd: CmdInfo, inclCmds: bool, exclFlags: set[OptFlag]): bool =
+func hasAbbrs(cmd: CmdInfo, inclCmds: bool, excl: set[OptFlag]): bool =
   for opt in cmd.opts:
-    if opt.isOpt and exclFlags * opt.flags == {}:
+    if opt.isOpt(excl):
       if opt.abbr.len > 0:
         return true
       if opt.kind == Discriminator:
         for subCmd in opt.subCmds:
-          if hasAbbrs(subCmd, inclCmds, exclFlags):
+          if hasAbbrs(subCmd, inclCmds, excl):
             return true
     elif inclCmds and opt.kind == Discriminator and opt.isCommand:
       for subCmd in opt.subCmds:
-        if hasAbbrs(subCmd, inclCmds, exclFlags):
+        if hasAbbrs(subCmd, inclCmds, excl):
           return true
 
-func hasAbbrs(cmds: openArray[CmdInfo], exclFlags: set[OptFlag]): bool =
+func hasAbbrs(cmds: openArray[CmdInfo], excl: set[OptFlag]): bool =
   for i, cmd in cmds:
     let inclCmds = i == cmds.high
-    if hasAbbrs(cmd, inclCmds, exclFlags):
+    if hasAbbrs(cmd, inclCmds, excl):
       return true
   false
 
@@ -305,13 +305,17 @@ proc writeLongDesc(help: var string,
       helpOutput padding("", 5 + appInfo.namesWidth)
       help.writeDesc appInfo, line, ""
 
-proc describeInvocation(help: var string,
-                        cmd: CmdInfo, cmdInvocation: string,
-                        appInfo: HelpAppInfo) =
+proc describeInvocation(
+  help: var string,
+  cmd: CmdInfo,
+  cmdInvocation: string,
+  appInfo: HelpAppInfo,
+  excl: set[OptFlag]
+) =
   helpOutput styleBright, "\p", fgCommand, cmdInvocation
 
   if cmd.opts.len > 0:
-    if cmd.hasOpts: helpOutput " [OPTIONS]..."
+    if cmd.hasOpts(excl): helpOutput " [OPTIONS]..."
 
     let subCmdDiscriminator = cmd.getSubCmdDiscriminator
     if subCmdDiscriminator != nil: helpOutput " command"
@@ -350,12 +354,11 @@ type
 proc describeOptionsList(
   help: var string,
   cmd: CmdInfo,
-  appInfo: HelpAppInfo
+  appInfo: HelpAppInfo,
+  excl: set[OptFlag]
 ) =
   for opt in cmd.opts:
-    if not opt.isOpt:
-      continue
-    if optDebug in opt.flags and hlpDebug notin appInfo.flags:
+    if not opt.isOpt(excl):
       continue
 
     if opt.separator.len > 0:
@@ -391,6 +394,7 @@ proc describeOptions(
   cmds: openArray[CmdInfo],
   cmdInvocation: string,
   appInfo: HelpAppInfo,
+  excl: set[OptFlag],
   optionsType = normalOpts
 ) =
   if cmds.len == 0:
@@ -398,7 +402,7 @@ proc describeOptions(
 
   var hasOpts = false
   for c in cmds:
-    if c.hasOpts:
+    if c.hasOpts(excl):
       hasOpts = true
 
   if hasOpts:
@@ -411,20 +415,20 @@ proc describeOptions(
       discard
 
     for c in cmds:
-      describeOptionsList(help, c, appInfo)
+      describeOptionsList(help, c, appInfo, excl)
 
     for c in cmds:
       for opt in c.opts:
-        if opt.isOpt and opt.kind == Discriminator:
+        if opt.isOpt(excl) and opt.kind == Discriminator:
           for i, subCmd in opt.subCmds:
-            if not subCmd.hasOpts:
+            if not subCmd.hasOpts(excl):
               continue
 
             helpOutput "\pWhen ", styleBright, fgBlue, opt.humaneName, resetStyle, " = ", fgGreen, subCmd.name
 
             if i == opt.defaultSubCmd:
               helpOutput " (default)"
-            help.describeOptions [subCmd], cmdInvocation, appInfo, conditionalOpts
+            help.describeOptions [subCmd], cmdInvocation, appInfo, excl, conditionalOpts
 
   let cmd = cmds[^1]
   let subCmdDiscriminator = cmd.getSubCmdDiscriminator
@@ -432,15 +436,15 @@ proc describeOptions(
     let defaultCmdIdx = subCmdDiscriminator.defaultSubCmd
     if defaultCmdIdx != -1:
       let defaultCmd = subCmdDiscriminator.subCmds[defaultCmdIdx]
-      help.describeOptions [defaultCmd], cmdInvocation, appInfo, defaultCmdOpts
+      help.describeOptions [defaultCmd], cmdInvocation, appInfo, excl, defaultCmdOpts
 
     helpOutput fgSection, "\pAvailable sub-commands:\p"
 
     for i, subCmd in subCmdDiscriminator.subCmds:
       if i != subCmdDiscriminator.defaultSubCmd:
         let subCmdInvocation = cmdInvocation & " " & subCmd.name
-        help.describeInvocation subCmd, subCmdInvocation, appInfo
-        help.describeOptions [subCmd], subCmdInvocation, appInfo
+        help.describeInvocation subCmd, subCmdInvocation, appInfo, excl
+        help.describeOptions [subCmd], subCmdInvocation, appInfo, excl
 
 proc showHelp(help: var string,
               appInfo: HelpAppInfo,
@@ -450,8 +454,13 @@ proc showHelp(help: var string,
 
   let cmd = activeCmds[^1]
 
-  appInfo.maxNameLen = maxNameLen(activeCmds, {optDebug, optHidden})
-  appInfo.hasAbbrs = hasAbbrs(activeCmds, {optDebug, optHidden})
+  let excl =
+    if hlpDebug in appInfo.flags:
+      {optHidden}
+    else:
+      {optHidden, optDebug}
+  appInfo.maxNameLen = maxNameLen(activeCmds, excl)
+  appInfo.hasAbbrs = hasAbbrs(activeCmds, excl)
   let termWidth =
     try:
       terminalWidth()
@@ -468,8 +477,8 @@ proc showHelp(help: var string,
 
   # Write out the app or script name
   helpOutput fgSection, "Usage: \p"
-  help.describeInvocation cmd, cmdInvocation, appInfo
-  help.describeOptions activeCmds, cmdInvocation, appInfo
+  help.describeInvocation cmd, cmdInvocation, appInfo, excl
+  help.describeOptions activeCmds, cmdInvocation, appInfo, excl
   helpOutput "\p"
 
   flushOutputAndQuit QuitSuccess
