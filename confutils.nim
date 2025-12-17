@@ -129,7 +129,7 @@ when defined(nimscript):
     100000
 
 else:
-  proc appInvocation: string =
+  template appInvocation: string =
     try:
       getAppFilename().splitFile.name
     except OSError:
@@ -1340,11 +1340,6 @@ proc loadImpl[C, SecondarySources](
   for cmd in activeCmds:
     result.processMissingOpts(cmd)
 
-proc defaultEnvVarsPrefix(): string =
-  result = appInvocation()
-  if result.len == 0:
-    result = "_"
-
 template load*(
     Configuration: type,
     cmdLine = commandLineParams(),
@@ -1354,7 +1349,7 @@ template load*(
     quitOnFailure = true,
     ignoreUnknown = false,
     secondarySources: untyped = nil,
-    envVarsPrefix = defaultEnvVarsPrefix(),
+    envVarsPrefix = appInvocation(),
     termWidth = 0): untyped =
   block:
     let secondarySourcesRef = generateSecondarySources(Configuration)
